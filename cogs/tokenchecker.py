@@ -14,35 +14,29 @@ class NitrolessRemovalButton(disnake.ui.View):
 
     @disnake.ui.button(label="Yes", style=disnake.ButtonStyle.green, custom_id="remove_nitroless_yes")
     async def yes_button(self, interaction: disnake.MessageInteraction, button: disnake.ui.Button):
-        # Call the cog's remove method
         await self.cog.remove_nitroless_tokens(interaction, self.file_path)
 
-        # Disable both buttons
         button.disabled = True
         for item in self.children:
             item.disabled = True
 
-        # Edit the original message to reflect the new button states
         await interaction.message.edit(view=self)
 
     @disnake.ui.button(label="No", style=disnake.ButtonStyle.red, custom_id="remove_nitroless_no")
     async def no_button(self, interaction: disnake.MessageInteraction, button: disnake.ui.Button):
-        # Send an embed indicating the action was cancelled
         embed = disnake.Embed(
             title="Action Cancelled",
             description="Nitroless tokens will not be removed.",
             color=disnake.Color.from_rgb(190, 0, 196)
         )
+
         await interaction.response.send_message(embed=embed)
 
-        # Disable both buttons
         button.disabled = True
         for item in self.children:
             item.disabled = True
 
-        # Edit the original message to reflect the new button states
         await interaction.message.edit(view=self)
-
 
 class TokenChecker(commands.Cog):
     def __init__(self, bot):
@@ -55,8 +49,7 @@ class TokenChecker(commands.Cog):
         interaction: disnake.ApplicationCommandInteraction,
         token_type: str = commands.Param(choices=["1M", "3M"])
     ):
-        await interaction.response.defer(thinking=True)
-
+        await interaction.response.defer()
         file_path = f'assets/{token_type.lower()}_tokens.txt'
         no_nitro_count = 0
         invalid_count = 0

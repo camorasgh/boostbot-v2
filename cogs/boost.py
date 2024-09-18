@@ -1,4 +1,6 @@
+import asyncio
 import sys
+import threading
 import time
 from json import load
 
@@ -49,6 +51,56 @@ class Boost(commands.Cog):
                     return None
                 return await response.json()
 
+    async def run_boosting(self, access_token, server_id, boost_type, token):
+        booster = boosting.boosting()
+        file_path = f'assets/{boost_type.lower()}_tokens.txt'
+
+        header = {
+            "Authorization": f"{token}",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
+            "Content-Type": "application/json",
+            "Origin": "https://canary.discord.com",
+            "X-Discord-Locale": "en-US",
+            "X-Discord-Timezone": "Europe/Vienna"
+        }
+        authurl_data = {
+            "permissions": "0",
+            "authorize": True,
+            "integration_type": 0,
+            "location_context": {
+                "guild_id": "10000",
+                "channel_id": "10000",
+                "channel_type": 10000
+            }
+        }
+
+        response = requests.post(url=self.auth_url, headers=header, json=authurl_data)
+        response_json = response.json()
+        location_url = response_json.get("location")
+        if location_url and "code=" in location_url:
+            code = location_url.split("code=")[1].split("&")[0]
+        else:
+            code = None
+        token_response = await self.exchange_code_for_token(code)
+        if token_response is None:
+            print(f"Token {token} has returned code NULL (exchange code for token)")
+            return
+
+        access_token = token_response.get('access_token')
+        if not access_token:
+            print(f"Token {token} has no access_token (after exchange code for token)")
+            return
+
+        if await booster.add_user_to_guild(access_token, server_id):
+            print('User added to guild successfully!')
+            if await booster.process_boostids(token, server_id):
+                await booster.remove_used_token(file_path, token)
+                return True
+
+        await booster.remove_used_token(file_path, token)
+        return False
+
+
     @commands.slash_command(name="boost", description="Boost users to the server")
     async def boost(
         self,
@@ -57,7 +109,7 @@ class Boost(commands.Cog):
         boost_type: str = commands.Param(choices=["1M", "3M"]),
         amount: int = commands.Param()
     ):
-        await interaction.response.defer(thinking=True)
+        await interaction.response.defer()
         if amount % 2 != 0 or amount < 2:
             await interaction.followup.send("Amount must be an even number and at least 2.")
             return
@@ -67,8 +119,8 @@ class Boost(commands.Cog):
             server_id = int(server_id)
         except Exception as e:
             await interaction.followup.send(f"Error: {e}")
-            return 
-        
+            return
+
         file_path = f'assets/{boost_type.lower()}_tokens.txt'
         try:
             with open(file_path, 'r') as boost_file:
@@ -78,74 +130,34 @@ class Boost(commands.Cog):
             return
 
         tokens = [token.strip() for token in tokens]
-        boosts_needed = amount
-        total_boosts_successful = 0
         total_tokens_used = 0
+        total_boosts_successful = 0
 
-        for _ in range(boosts_needed // 2):
-            if not tokens:
-                await interaction.followup.send("Not enough tokens to complete the boost.")
-                break
-
-            token = tokens.pop(0)
+        def boost_thread(token):
+            nonlocal total_tokens_used, total_boosts_successful
+            if asyncio.run(self.run_boosting(interaction.user.id, server_id, boost_type, token)):
+                total_boosts_successful += 1
             total_tokens_used += 1
 
-            header = {
-                "Authorization": f"{token}",
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
-                "Content-Type": "application/json",
-                "Origin": "https://canary.discord.com",
-                "X-Discord-Locale": "en-US",
-                "X-Discord-Timezone": "Europe/Vienna"
-            }
-            authurl_data = {
-                "permissions": "0",
-                "authorize": True,
-                "integration_type": 0,
-                "location_context": {
-                    "guild_id": "10000",
-                    "channel_id": "10000",
-                    "channel_type": 10000
-                }
-            }
+        threads = []
+        for token in tokens:
+            thread = threading.Thread(target=boost_thread, args=(token,))
+            threads.append(thread)
+            thread.start()
 
-            response = requests.post(url=self.auth_url, headers=header, json=authurl_data)
-            response_json = response.json()
-            location_url = response_json.get("location")
-            if location_url and "code=" in location_url:
-                code = location_url.split("code=")[1].split("&")[0]
-            else:
-                code = None
-            token_response = await self.exchange_code_for_token(code)
-            if token_response is None:
-                print(f"Token {token} has returned code NULL (exchange code for token)")
-                continue
+        for thread in threads:
+            thread.join()
 
-            access_token = token_response.get('access_token')
-            if not access_token:
-                print(f"Token {token} has no access_token (after exchange code for token)")
-                continue
-
-            booster = boosting.boosting()
-            if await booster.add_user_to_guild(access_token, server_id):
-                print('User added to guild successfully!')
-                if await booster.process_boostids(token, server_id): #@suspectedesp was here
-                    total_boosts_successful += 2
-
-            await booster.remove_used_token(file_path, token)
-
-        end_time = time.time()
-        duration = end_time - start_time
+        duration = time.time() - start_time
         guild = self.bot.get_guild(server_id)
         guild_name = guild.name if guild else "Unknown Server"
 
         embed = disnake.Embed(title="Operation Summary", color=0xbe00c4)
         embed.add_field(name="Guild Name", value=guild_name, inline=False)
         embed.add_field(name="Operation Duration", value=f"{duration:.2f} seconds", inline=False)
-        embed.add_field(name="Joins Succeeded", value=f"{total_tokens_used}/{boosts_needed // 2}", inline=False)
-        embed.add_field(name="Boosts Succeeded", value=f"{total_boosts_successful}/{amount}", inline=False)
+        embed.add_field(name="Joins Succeeded", value=f"{total_tokens_used}", inline=False)
+        embed.add_field(name="Boosts Succeeded", value=f"{total_boosts_successful}", inline=False)
         await interaction.followup.send(embed=embed)
-
 
 def setup(bot):
     bot.add_cog(Boost(bot))
