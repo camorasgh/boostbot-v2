@@ -2,13 +2,14 @@ import disnake
 from disnake.ext import commands
 from disnake import app_commands
 
+client = None
 
 class RemoveTokens(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
 
-    @app_commands.command(name="removetokens", description="Removes all tokens from the specified file")
+    @client.slash_command(name="removetokens", description="Removes all tokens from the specified file")
     @app_commands.choices(type=[
         app_commands.Choice(name="1M", value="1M"),
         app_commands.Choice(name="3M", value="3M")
@@ -27,4 +28,6 @@ class RemoveTokens(commands.Cog):
 
 
 async def setup(bot):
+    global client
+    client = bot
     await bot.add_cog(RemoveTokens(bot))

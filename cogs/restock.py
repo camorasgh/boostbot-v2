@@ -2,13 +2,14 @@ import disnake
 from disnake import app_commands
 from disnake.ext import commands
 
+client = None
 
 class Restock(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
 
-    @app_commands.command(name="restock", description="Restocks tokens")
+    @client.slash_command(name="restock", description="Restocks tokens")
     @app_commands.choices(type=[
         app_commands.Choice(name="1M", value="1M"),
         app_commands.Choice(name="3M", value="3M")
@@ -34,4 +35,6 @@ class Restock(commands.Cog):
 
 
 async def setup(bot):
+    global client
+    client = bot
     await bot.add_cog(Restock(bot))
