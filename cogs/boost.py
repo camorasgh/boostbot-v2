@@ -1,9 +1,9 @@
 import aiohttp
-import discord
+import disnake
 import requests
 import time
-from discord import app_commands
-from discord.ext import commands
+from disnake import app_commands
+from disnake.ext import commands
 from json import load
 import sys
 sys.path.append('.')
@@ -138,7 +138,7 @@ class Boost(commands.Cog):
         guild = self.bot.get_guild(server_id)
         guild_name = guild.name if guild else "Unknown Server"
 
-        embed = discord.Embed(title="Operation Summary", color=0xbe00c4)
+        embed = disnake.Embed(title="Operation Summary", color=0xbe00c4)
         embed.add_field(name="Guild Name", value=guild_name, inline=False)
         embed.add_field(name="Operation Duration", value=f"{duration:.2f} seconds", inline=False)
         embed.add_field(name="Joins Succeeded", value=f"{total_tokens_used}/{boosts_needed // 2}", inline=False)

@@ -1,6 +1,6 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
+import disnake
+from disnake import app_commands
+from disnake.ext import commands
 
 
 class Stock(commands.Cog): 
@@ -9,7 +9,7 @@ class Stock(commands.Cog):
 
 
     @app_commands.command(name="stock", description="Displays the boost stock information")
-    async def stock(self, interaction: discord.Interaction):
+    async def stock(self, interaction: disnake.Interaction):
         with open('assets/1m_tokens.txt', 'r') as file:
             tokens_1m = len(file.readlines())
         with open('assets/3m_tokens.txt', 'r') as file:
@@ -17,7 +17,7 @@ class Stock(commands.Cog):
         boosts_1m = tokens_1m * 2
         boosts_3m = tokens_3m * 2
 
-        embed = discord.Embed(
+        embed = disnake.Embed(
             title="Boost Stock",
             description=(
                 f"1M Tokens: ``{tokens_1m}``\n"
@@ -25,7 +25,7 @@ class Stock(commands.Cog):
                 f"3M Tokens: ``{tokens_3m}``\n"
                 f"3M Boosts: ``{boosts_3m}``"
             ),
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
 

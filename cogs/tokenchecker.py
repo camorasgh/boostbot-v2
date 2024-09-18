@@ -1,32 +1,32 @@
 import datetime
-import discord
+import disnake
 import pytz
 import requests
-from discord import app_commands
-from discord.ext import commands
+from disnake import app_commands
+from disnake.ext import commands
 
 
-class NitrolessRemovalButton(discord.ui.View):
+class NitrolessRemovalButton(disnake.ui.View):
     def __init__(self, cog, file_path):
         super().__init__(timeout=None)
         self.cog = cog
         self.file_path = file_path
 
 
-    @discord.ui.button(label="Yes", style=discord.ButtonStyle.green, custom_id="remove_nitroless_yes")
-    async def yes_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @disnake.ui.button(label="Yes", style=disnake.ButtonStyle.green, custom_id="remove_nitroless_yes")
+    async def yes_button(self, interaction: disnake.Interaction, button: disnake.ui.Button):
         await self.cog.remove_nitroless_tokens(interaction, self.file_path)
         button.disabled = True
         self.children[1].disabled = True
         await interaction.message.edit(view=self)
 
 
-    @discord.ui.button(label="No", style=discord.ButtonStyle.red, custom_id="remove_nitroless_no")
-    async def no_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        embed = discord.Embed(
+    @disnake.ui.button(label="No", style=disnake.ButtonStyle.red, custom_id="remove_nitroless_no")
+    async def no_button(self, interaction: disnake.Interaction, button: disnake.ui.Button):
+        embed = disnake.Embed(
             title="Action Cancelled",
             description="Nitroless tokens will not be removed.",
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
         button.disabled = True
@@ -44,7 +44,7 @@ class TokenChecker(commands.Cog):
         app_commands.Choice(name="1M", value="1M"),
         app_commands.Choice(name="3M", value="3M")
     ])
-    async def check(self, interaction: discord.Interaction, type: app_commands.Choice[str]):
+    async def check(self, interaction: disnake.Interaction, type: app_commands.Choice[str]):
         await interaction.response.defer(thinking=True)
 
         file_path = f'assets/{type.value.lower()}_tokens.txt'
@@ -73,9 +73,9 @@ class TokenChecker(commands.Cog):
         with open(file_path, 'w') as file:
             file.writelines(f"{token}\n" for token in valid_tokens)
 
-        embed = discord.Embed(
+        embed = disnake.Embed(
             title=f"Token Check Results - {type.value}",
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
 
         for result in results:
@@ -87,10 +87,10 @@ class TokenChecker(commands.Cog):
         await interaction.followup.send(embed=embed)
 
         if no_nitro_count > 0:
-            removal_embed = discord.Embed(
+            removal_embed = disnake.Embed(
                 title="Remove Nitroless Tokens?",
                 description=f"Found {no_nitro_count} tokens without Nitro. Should I remove all Nitroless tokens?",
-                color=discord.Color.from_rgb(190, 0, 196)
+                color=disnake.Color.from_rgb(190, 0, 196)
             )
 
             view = NitrolessRemovalButton(self, file_path)
@@ -212,7 +212,7 @@ class TokenChecker(commands.Cog):
             return self.format_nitro_basic_response(now, user, token)
         
 
-    async def remove_nitroless_tokens(self, interaction: discord.Interaction, file_path):
+    async def remove_nitroless_tokens(self, interaction: disnake.Interaction, file_path):
         with open(file_path, 'r') as file:
             tokens = file.readlines()
 
@@ -230,10 +230,10 @@ class TokenChecker(commands.Cog):
             file.writelines(nitro_tokens)
 
         removed_count = len(tokens) - len(nitro_tokens)
-        embed = discord.Embed(
+        embed = disnake.Embed(
             title="Nitroless Tokens Removed",
             description=f"Removed {removed_count} Nitroless tokens.",
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
 

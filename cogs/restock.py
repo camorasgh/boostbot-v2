@@ -1,6 +1,6 @@
-import discord
-from discord import app_commands
-from discord.ext import commands
+import disnake
+from disnake import app_commands
+from disnake.ext import commands
 
 
 class Restock(commands.Cog):
@@ -13,7 +13,7 @@ class Restock(commands.Cog):
         app_commands.Choice(name="1M", value="1M"),
         app_commands.Choice(name="3M", value="3M")
     ])
-    async def restock(self, interaction: discord.Interaction, type: app_commands.Choice[str], file: discord.Attachment):
+    async def restock(self, interaction: disnake.Interaction, type: app_commands.Choice[str], file: disnake.Attachment):
         if not file:
             await interaction.response.send_message("Please upload a file with the tokens.")
             return
@@ -25,10 +25,10 @@ class Restock(commands.Cog):
             for token in tokens:
                 f.write(f"{token}\n")
 
-        embed = discord.Embed(
+        embed = disnake.Embed(
             title="Restock Successful",
             description=f"Successfully restocked ``{len(tokens)}`` tokens for {type.value}.",
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
 

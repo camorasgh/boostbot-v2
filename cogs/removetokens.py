@@ -1,6 +1,6 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
+import disnake
+from disnake.ext import commands
+from disnake import app_commands
 
 
 class RemoveTokens(commands.Cog):
@@ -13,15 +13,15 @@ class RemoveTokens(commands.Cog):
         app_commands.Choice(name="1M", value="1M"),
         app_commands.Choice(name="3M", value="3M")
     ])
-    async def removetokens(self, interaction: discord.Interaction, type: app_commands.Choice[str]):
+    async def removetokens(self, interaction: disnake.Interaction, type: app_commands.Choice[str]):
         file_path = f'assets/{type.value.lower()}_tokens.txt'
         with open(file_path, 'w') as f:
             f.write('')
 
-        embed = discord.Embed(
+        embed = disnake.Embed(
             title="Tokens Removed",
             description=f"All tokens have been removed from the {type.value} file.",
-            color=discord.Color.from_rgb(190, 0, 196)
+            color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
 
