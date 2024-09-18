@@ -1,7 +1,0 @@
-{
-    "token": "MTI3NTU1MjY2ODEwMTkwMjQ0OQ.G-dNIZ.zBdxs4ocZC93N7tGdxsILrkz7kPkXax9Vyjck0",
-    "prefix": "$",
-    "secret": "CXhbHvwFdBwG1XGC9KPvbL1cKXC5SObF",
-    "redirect": "http://localhost:3000/callback",
-    "canary_api": "https://canary.discord.com/api/v9"
-}
