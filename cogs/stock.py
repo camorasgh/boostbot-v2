@@ -2,15 +2,13 @@ import disnake
 from disnake import app_commands
 from disnake.ext import commands
 
-client = None
-
 class Stock(commands.Cog): 
     def __init__(self, bot):
         self.bot = bot
 
 
-    @client.slash_command(name="stock", description="Displays the boost stock information")
-    async def stock(self, interaction: disnake.Interaction):
+    @commands.slash_command(name="stock", description="Displays the boost stock information")
+    async def stock(self, interaction: disnake.ApplicationCommandInteraction):
         with open('assets/1m_tokens.txt', 'r') as file:
             tokens_1m = len(file.readlines())
         with open('assets/3m_tokens.txt', 'r') as file:
@@ -31,7 +29,5 @@ class Stock(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 
-async def setup(bot): 
-    global client
-    client = bot
+async def setup(bot):
     await bot.add_cog(Stock(bot))

@@ -5,8 +5,6 @@ import requests
 from disnake import app_commands
 from disnake.ext import commands
 
-client = None
-
 class NitrolessRemovalButton(disnake.ui.View):
     def __init__(self, cog, file_path):
         super().__init__(timeout=None)
@@ -39,13 +37,13 @@ class TokenChecker(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.timezone = pytz.timezone('Europe/Berlin')
-
-    @client.slash_command(name="check", description="Checks tokens")
-    @app_commands.choices(type=[
-        app_commands.Choice(name="1M", value="1M"),
-        app_commands.Choice(name="3M", value="3M")
-    ])
-    async def check(self, interaction: disnake.Interaction, type: app_commands.Choice[str]):
+        
+    @commands.slash_command(name="check", description="Checks tokens")
+    async def check(
+        self,
+        interaction: disnake.ApplicationCommandInteraction,
+        token_type: str = commands.Param(choices=["1M", "3M"])
+    ):
         await interaction.response.defer(thinking=True)
 
         file_path = f'assets/{type.value.lower()}_tokens.txt'
@@ -240,6 +238,4 @@ class TokenChecker(commands.Cog):
 
 
 async def setup(bot):
-    global client 
-    client = bot
     await bot.add_cog(TokenChecker(bot))

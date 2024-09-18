@@ -2,19 +2,18 @@ import disnake
 from disnake import app_commands
 from disnake.ext import commands
 
-client = None
-
 class Restock(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
 
-    @client.slash_command(name="restock", description="Restocks tokens")
-    @app_commands.choices(type=[
-        app_commands.Choice(name="1M", value="1M"),
-        app_commands.Choice(name="3M", value="3M")
-    ])
-    async def restock(self, interaction: disnake.Interaction, type: app_commands.Choice[str], file: disnake.Attachment):
+    @commands.slash_command(name="restock", description="Restocks tokens")
+    async def restock(
+        self,
+        interaction: disnake.ApplicationCommandInteraction,
+        token_type: str = commands.Param(choices=["1M", "3M"]),
+        file: disnake.Attachment = commands.Param(description="The file with tokens to restock")
+    ):
         if not file:
             await interaction.response.send_message("Please upload a file with the tokens.")
             return
@@ -35,6 +34,4 @@ class Restock(commands.Cog):
 
 
 async def setup(bot):
-    global client
-    client = bot
     await bot.add_cog(Restock(bot))

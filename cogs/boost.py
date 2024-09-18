@@ -10,9 +10,7 @@ sys.path.append('.')
 from . import boosting
 
 with open("config.json", "r") as file:
-    data = load(file)
-
-client = None
+    data = load
 
 class Boost(commands.Cog):
     def __init__(self, bot):
@@ -50,13 +48,14 @@ class Boost(commands.Cog):
                     return None
                 return await response.json()
 
-
-    @client.slash_command(name="boost", description="Boost users to the server")
-    @app_commands.choices(type=[
-        app_commands.Choice(name="1M", value="1M"),
-        app_commands.Choice(name="3M", value="3M")
-    ])
-    async def boost(self, interaction: disnake.Interaction, server_id: str, type: app_commands.Choice[str], amount: int):
+    @commands.slash_command(name="boost", description="Boost users to the server")
+    async def boost(
+        self,
+        interaction: disnake.ApplicationCommandInteraction,
+        server_id: str,
+        boost_type: str = commands.Param(choices=["1M", "3M"]),
+        amount: int = commands.Param()
+    ):
         await interaction.response.defer(thinking=True)
         if amount % 2 != 0 or amount < 2:
             await interaction.followup.send("Amount must be an even number and at least 2.")
@@ -148,6 +147,4 @@ class Boost(commands.Cog):
 
 
 async def setup(bot):
-    global client
-    client = bot
     await bot.add_cog(Boost(bot))
