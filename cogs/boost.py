@@ -1,16 +1,17 @@
+import sys
+import time
+from json import load
+
 import aiohttp
 import disnake
 import requests
-import time
-from disnake import app_commands
 from disnake.ext import commands
-from json import load
-import sys
+
 sys.path.append('.')
 from . import boosting
 
 with open("config.json", "r") as file:
-    data = load
+    data = load(file)
 
 class Boost(commands.Cog):
     def __init__(self, bot):
@@ -31,7 +32,7 @@ class Boost(commands.Cog):
 
 
     async def exchange_code_for_token(self, code):
-        data = {
+        request_data = {
             'grant_type': 'authorization_code',
             'code': code,
             'redirect_uri': self.redirect_url,
@@ -42,7 +43,7 @@ class Boost(commands.Cog):
             'Content-Type': 'application/x-www-form-urlencoded'
         }
         async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.api_endpoint}/oauth2/token", data=data, headers=headers) as response:
+            async with session.post(f"{self.api_endpoint}/oauth2/token", data=request_data, headers=headers) as response:
                 if response.status != 200:
                     print(f"Token exchange failed: {await response.text()}")
                     return None
@@ -68,10 +69,10 @@ class Boost(commands.Cog):
             await interaction.followup.send(f"Error: {e}")
             return 
         
-        file_path = f'assets/{type.value.lower()}_tokens.txt'
+        file_path = f'assets/{boost_type.lower()}_tokens.txt'
         try:
-            with open(file_path, 'r') as file:
-                tokens = file.readlines()
+            with open(file_path, 'r') as boost_file:
+                tokens = boost_file.readlines()
         except FileNotFoundError:
             await interaction.followup.send("Token file not found.")
             return
@@ -97,7 +98,7 @@ class Boost(commands.Cog):
                 "X-Discord-Locale": "en-US",
                 "X-Discord-Timezone": "Europe/Vienna"
             }
-            data = {
+            authurl_data = {
                 "permissions": "0",
                 "authorize": True,
                 "integration_type": 0,
@@ -108,7 +109,7 @@ class Boost(commands.Cog):
                 }
             }
 
-            response = requests.post(url=self.auth_url, headers=header, json=data)
+            response = requests.post(url=self.auth_url, headers=header, json=authurl_data)
             response_json = response.json()
             location_url = response_json.get("location")
             if location_url and "code=" in location_url:

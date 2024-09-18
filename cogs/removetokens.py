@@ -1,6 +1,6 @@
 import disnake
 from disnake.ext import commands
-from disnake import app_commands
+
 
 class RemoveTokens(commands.Cog):
     def __init__(self, bot):

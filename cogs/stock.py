@@ -1,5 +1,4 @@
 import disnake
-from disnake import app_commands
 from disnake.ext import commands
 
 class Stock(commands.Cog): 

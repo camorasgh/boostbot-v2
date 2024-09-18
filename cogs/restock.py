@@ -1,5 +1,4 @@
 import disnake
-from disnake import app_commands
 from disnake.ext import commands
 
 class Restock(commands.Cog):
@@ -18,7 +17,7 @@ class Restock(commands.Cog):
             await interaction.response.send_message("Please upload a file with the tokens.")
             return
 
-        file_path = f'assets/{type.value.lower()}_tokens.txt'
+        file_path = f'assets/{token_type.lower()}_tokens.txt'
         content = await file.read()
         tokens = content.decode('utf-8').splitlines()
         with open(file_path, 'a') as f:
@@ -27,7 +26,7 @@ class Restock(commands.Cog):
 
         embed = disnake.Embed(
             title="Restock Successful",
-            description=f"Successfully restocked ``{len(tokens)}`` tokens for {type.value}.",
+            description=f"Successfully restocked ``{len(tokens)}`` tokens for {token_type}.",
             color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)

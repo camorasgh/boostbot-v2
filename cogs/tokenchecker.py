@@ -1,9 +1,10 @@
 import datetime
+
 import disnake
 import pytz
 import requests
-from disnake import app_commands
 from disnake.ext import commands
+
 
 class NitrolessRemovalButton(disnake.ui.View):
     def __init__(self, cog, file_path):
@@ -11,25 +12,35 @@ class NitrolessRemovalButton(disnake.ui.View):
         self.cog = cog
         self.file_path = file_path
 
-
     @disnake.ui.button(label="Yes", style=disnake.ButtonStyle.green, custom_id="remove_nitroless_yes")
-    async def yes_button(self, interaction: disnake.Interaction, button: disnake.ui.Button):
+    async def yes_button(self, interaction: disnake.MessageInteraction, button: disnake.ui.Button):
+        # Call the cog's remove method
         await self.cog.remove_nitroless_tokens(interaction, self.file_path)
+
+        # Disable both buttons
         button.disabled = True
-        self.children[1].disabled = True
+        for item in self.children:
+            item.disabled = True
+
+        # Edit the original message to reflect the new button states
         await interaction.message.edit(view=self)
 
-
     @disnake.ui.button(label="No", style=disnake.ButtonStyle.red, custom_id="remove_nitroless_no")
-    async def no_button(self, interaction: disnake.Interaction, button: disnake.ui.Button):
+    async def no_button(self, interaction: disnake.MessageInteraction, button: disnake.ui.Button):
+        # Send an embed indicating the action was cancelled
         embed = disnake.Embed(
             title="Action Cancelled",
             description="Nitroless tokens will not be removed.",
             color=disnake.Color.from_rgb(190, 0, 196)
         )
         await interaction.response.send_message(embed=embed)
+
+        # Disable both buttons
         button.disabled = True
-        self.children[0].disabled = True
+        for item in self.children:
+            item.disabled = True
+
+        # Edit the original message to reflect the new button states
         await interaction.message.edit(view=self)
 
 
@@ -46,7 +57,7 @@ class TokenChecker(commands.Cog):
     ):
         await interaction.response.defer(thinking=True)
 
-        file_path = f'assets/{type.value.lower()}_tokens.txt'
+        file_path = f'assets/{token_type.lower()}_tokens.txt'
         no_nitro_count = 0
         invalid_count = 0
         results = []
@@ -73,7 +84,7 @@ class TokenChecker(commands.Cog):
             file.writelines(f"{token}\n" for token in valid_tokens)
 
         embed = disnake.Embed(
-            title=f"Token Check Results - {type.value}",
+            title=f"Token Check Results - {token_type}",
             color=disnake.Color.from_rgb(190, 0, 196)
         )
 
@@ -100,11 +111,13 @@ class TokenChecker(commands.Cog):
         return datetime.datetime.now(self.timezone).strftime('%H:%M')
 
 
-    def mask_token(self, token):
+    @staticmethod
+    def mask_token(token):
         return token[:len(token)//4] + "***"
 
 
-    def get_user_info(self, session, token):
+    @staticmethod
+    def get_user_info(session, token):
         headers = {"Authorization": token}
         try:
             response = session.get("https://discord.com/api/v9/users/@me", headers=headers)
@@ -114,7 +127,8 @@ class TokenChecker(commands.Cog):
             return None
 
 
-    def get_guild_subscription_slots(self, session, token):
+    @staticmethod
+    def get_guild_subscription_slots(session, token):
         headers = {"Authorization": token}
         try:
             response = session.get("https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots", headers=headers)
@@ -124,7 +138,8 @@ class TokenChecker(commands.Cog):
             return []
 
 
-    def calculate_available_boosts(self, boost_check):
+    @staticmethod
+    def calculate_available_boosts(boost_check):
         now_utc = datetime.datetime.now(datetime.timezone.utc)
         return sum(
             1 for slot in boost_check
@@ -133,13 +148,15 @@ class TokenChecker(commands.Cog):
         )
 
 
-    def get_boosted_server(self, boost_check):
+    @staticmethod
+    def get_boosted_server(boost_check):
         if boost_check and boost_check[0]['premium_guild_subscription'] is not None:
             return boost_check[0]['premium_guild_subscription']['guild_id']
         return "None"
 
 
-    def get_nitro_expiration(self, session, token):
+    @staticmethod
+    def get_nitro_expiration(session, token):
         headers = {"Authorization": token}
         try:
             response = session.get("https://discord.com/api/v9/users/@me/billing/subscriptions", headers=headers)
