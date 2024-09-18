@@ -32,5 +32,5 @@ class Restock(commands.Cog):
         await interaction.response.send_message(embed=embed)
 
 
-async def setup(bot):
-    await bot.add_cog(Restock(bot))
+def setup(bot):
+    bot.add_cog(Restock(bot))

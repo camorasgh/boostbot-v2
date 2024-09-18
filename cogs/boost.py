@@ -147,5 +147,5 @@ class Boost(commands.Cog):
         await interaction.followup.send(embed=embed)
 
 
-async def setup(bot):
-    await bot.add_cog(Boost(bot))
+def setup(bot):
+    bot.add_cog(Boost(bot))
