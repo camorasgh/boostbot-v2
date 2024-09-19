@@ -8,35 +8,40 @@ import datetime
 import os
 import sys
 
+
 class Logger:
     @staticmethod
     def success(message: str) -> None:
         current_time = Utils.format_time()
-        fornatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
+        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
         formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.GREEN}SUCCESS{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{fornatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
+        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
         return print(full_msg)
+
     @staticmethod
     def error(message: str) -> None:
         current_time = Utils.format_time()
-        fornatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
+        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
         formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.RED}ERROR{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{fornatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
+        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
         return print(full_msg)
+
     @staticmethod
     def info(message: str) -> None:
         current_time = Utils.format_time()
-        fornatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
+        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
         formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.YELLOW}INFO{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{fornatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
+        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
         return print(full_msg)
+
     @staticmethod
     def custom(status: str, message: str, status_color: Any = Fore.MAGENTA ) -> None:
         current_time = Utils.format_time()
-        fornatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
+        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
         formatted_status = f"{Fore.LIGHTBLACK_EX}[{status_color}SUCCESS{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{fornatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
+        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
         return print(full_msg)
+
 
 class Utils:
     @staticmethod
@@ -44,8 +49,9 @@ class Utils:
         current_time = datetime.datetime.now(datetime.timezone.utc)
         formatted = current_time.strftime("%d/%m - %H:%M")
         return formatted
+
     @staticmethod
-    def load_config(fp: str ="./config.json")-> Dict[Any, Any]:
+    def load_config(fp: str ="./config.json")-> Dict[Any, Any] | bool:
         try:
             with open(fp, "r") as config_file:
                 config = json.load(config_file)
@@ -57,12 +63,14 @@ class Utils:
             Logger.error(f"JSONDecodeError: {e}")
             return False
 
+
 class Cogloader:
     def __init__(self, bot: commands.InteractionBot) -> None:
         self.bot = bot
         self.loaded = 0
         self.not_loaded = 0
         self.errors = []
+
     def get_results(self) -> Dict:
         results = {
             "loaded":self.loaded,
@@ -72,6 +80,7 @@ class Cogloader:
         if len(self.errors) > 0:
             results['errors'] = ', '.join(error for error in self.errors)
         return results
+
     def load(self):
         if os.path.exists("./cogs"):
             for file in os.listdir("./cogs"):
@@ -93,6 +102,8 @@ class Cogloader:
                             self.errors.append(e)
         else:
             self.errors.append("./cogs folder does not exist.")
+
+
 class Bot(commands.InteractionBot): # no message commands
     def __init__(self, owner_ids, intents=disnake.Intents.all(), **kwargs):
         self.config = Utils.load_config()
@@ -106,7 +117,7 @@ class Bot(commands.InteractionBot): # no message commands
         self.logger = Logger
         self.config = Utils.load_config()
         self.global_cooldown = commands.CooldownMapping.from_cooldown(5, 60, commands.BucketType.user)
-        
+
     #cooldown
     async def process_commands(self, message: disnake.Message):
         if message.author.bot:
@@ -119,15 +130,18 @@ class Bot(commands.InteractionBot): # no message commands
             return
         
         await super().process_commands(message)
-        
-bot = Bot()
+
+
+data = Utils.load_config()
+bot = Bot(owner_ids=data["owner_ids"])
 
 
 @bot.listen("on_ready")
 async def on_ready_listener():
     cogs = Cogloader(bot)
-    cogs.LoadCogs()
+    cogs.load()
     Logger.success(f"Bot is online as: {bot.user.name}")
+
 
 @bot.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
