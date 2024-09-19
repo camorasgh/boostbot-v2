@@ -132,10 +132,6 @@ class Bot(commands.InteractionBot): # no message commands
         await super().process_commands(message)
 
 
-data = Utils.load_config()
-bot = Bot(owner_ids=data["owner_ids"])
-
-
 @bot.listen("on_ready")
 async def on_ready_listener():
     cogs = Cogloader(bot)
