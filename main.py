@@ -11,36 +11,35 @@ import sys
 
 class Logger:
     @staticmethod
-    def success(message: str) -> None:
+    def log(message: str, status: str, status_color: Any) -> None: # i hate pycharm errors
+        """
+        A helper method to format and print log messages.
+
+        :param message: The message to log.
+        :param status: The status label (e.g., 'SUCCESS', 'ERROR').
+        :param status_color: The color to use for the status.
+        """
         current_time = Utils.format_time()
         formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.GREEN}SUCCESS{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
-        return print(full_msg)
+        formatted_status = f"{Fore.LIGHTBLACK_EX}[{status_color}{status}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
+        full_msg = f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
+        print(full_msg)
+
+    @staticmethod
+    def success(message: str) -> None:
+        Logger.log(message, "SUCCESS", Fore.GREEN)
 
     @staticmethod
     def error(message: str) -> None:
-        current_time = Utils.format_time()
-        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.RED}ERROR{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
-        return print(full_msg)
+        Logger.log(message, "ERROR", Fore.RED)
 
     @staticmethod
     def info(message: str) -> None:
-        current_time = Utils.format_time()
-        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        formatted_status = f"{Fore.LIGHTBLACK_EX}[{Fore.YELLOW}INFO{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
-        return print(full_msg)
+        Logger.log(message, "INFO", Fore.YELLOW)
 
     @staticmethod
-    def custom(status: str, message: str, status_color: Any = Fore.MAGENTA ) -> None:
-        current_time = Utils.format_time()
-        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        formatted_status = f"{Fore.LIGHTBLACK_EX}[{status_color}SUCCESS{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg =  f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
-        return print(full_msg)
+    def custom(status: str, message: str, status_color: Any = Fore.MAGENTA) -> None:
+        Logger.log(message, status, status_color)
 
 
 class Utils:
@@ -75,7 +74,7 @@ class Cogloader:
         results = {
             "loaded":self.loaded,
             "not_loaded": self.not_loaded,
-            
+
         }
         if len(self.errors) > 0:
             results['errors'] = ', '.join(error for error in self.errors)
@@ -105,18 +104,28 @@ class Cogloader:
 
 
 class Bot(commands.InteractionBot): # no message commands
-    def __init__(self, owner_ids, intents=disnake.Intents.all(), **kwargs):
-        self.config = Utils.load_config()
-        owner_ids = None
-        if "owner_ids" in str(self.config).lower():
-            for key, value in self.config.items():
-                self.config[key] = None
-                self.config[str(key).lower()] = value
-            owner_ids = self.config['owner_ids']
+    def __init__(self, intents=disnake.Intents.all(), **kwargs):
+        self.config = self.load_and_validate_config()
+        owner_ids = self.config.get('owner_ids', [])
+        owner_ids = {int(owner_id) for owner_id in owner_ids}
+
         super().__init__(owner_ids=owner_ids, intents=intents)
         self.logger = Logger
-        self.config = Utils.load_config()
         self.global_cooldown = commands.CooldownMapping.from_cooldown(5, 60, commands.BucketType.user)
+
+    def load_and_validate_config(self) -> Dict[str, Any]:
+        config = Utils.load_config()
+        if not config:
+            raise ValueError("Configuration file could not be loaded.")
+
+        config = {k.lower(): v for k, v in config.items()} #key, value
+
+        required_keys = ['token', 'client_id', 'client_secret', 'redirect_uri', 'owner_ids']
+        for key in required_keys:
+            if key not in config:
+                raise ValueError(f"Missing required configuration parameter: {key}")
+
+        return config
 
     #cooldown
     async def process_commands(self, message: disnake.Message):
@@ -128,9 +137,9 @@ class Bot(commands.InteractionBot): # no message commands
         if retry_after:
             await message.channel.send(f"You're using commands too fast. Try again in {retry_after:.2f} seconds.", delete_after=5)
             return
-        
-        await super().process_commands(message)
 
+        await super().process_commands(message) # type: ignore
+bot = Bot()
 
 @bot.listen("on_ready")
 async def on_ready_listener():
@@ -141,14 +150,14 @@ async def on_ready_listener():
 
 @bot.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
-    bucket = bot.global_cooldown.get_bucket(inter)
+    bucket = bot.global_cooldown.get_bucket(inter) # type: ignore
     retry_after = bucket.update_rate_limit()
     if retry_after:
         await inter.response.send_message(f"You're using commands too fast. Try again in {retry_after:.2f} seconds.", ephemeral=True)
         return
     await bot.process_application_commands(inter)
-    
-    
+
+# pip install git+https://github.com/DisnakeDev/disnake.git@feature/user-apps-v2
 if __name__ == "__main__":
     colorama.init(autoreset=True)
     print("cool ascii here")

@@ -1,0 +1,7 @@
+{
+  "token": "bot token",
+  "client_id": "bot client id",
+  "client_secret": "bot client secret",
+  "redirect_uri": "http://localhost:5000/callback",
+  "owner_ids": ["owner id"],
+}

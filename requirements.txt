@@ -1,2 +1,4 @@
-disnake==2.9.2
+git+https://github.com/DisnakeDev/disnake.git@feature/user-apps-v2#egg=disnake
 colorama==0.4.6
+requests
+flask
