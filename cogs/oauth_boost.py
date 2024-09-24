@@ -1,13 +1,13 @@
 import asyncio
 import random
+# threading currently unused (?)
+import threading
 from typing import List, Dict, Optional
+
 import aiohttp
 import disnake
-from disnake.ext import commands
 from disnake import InteractionContextType, ApplicationIntegrationType
-from flask import Flask, request, redirect
-import requests
-import threading
+from disnake.ext import commands
 
 # Constants
 DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
@@ -54,7 +54,8 @@ class TokenManager:
         except Exception as e:
             self.bot.logger.error(f"Error loading proxies: {str(e)}")
 
-    def format_proxy(self, proxy: str) -> str:
+    @staticmethod
+    def format_proxy(proxy: str) -> str:
         if '@' in proxy:
             auth, ip_port = proxy.split('@')
             return f"http://{auth}@{ip_port}"
@@ -154,28 +155,41 @@ class TokenManager:
             async with aiohttp.ClientSession() as session:
                 session.proxies = self.get_proxy()
                 await session.get(login_url)
+                headers = {
+                    "Authorization": f"{token}",
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
+                    "Content-Type": "application/json",
+                    "Origin": "https://canary.discord.com",
+                    "X-Discord-Locale": "en-US",
+                    "X-Discord-Timezone": "Europe/Vienna"
+                }
                 payload = {
-                    "guild_id": guild_id,
                     "permissions": "0",
                     "authorize": True,
                     "integration_type": 0,
+                    "location_context": {
+                        "guild_id": guild_id,
+                        "channel_id": "10000",  # Example placeholder
+                        "channel_type": 10000  # Example placeholder
+                    }
                 }
-                headers = {
-                    "Authorization": token,
-                    "Content-Type": "application/json",
-                }
+
                 async with session.post(url=login_url, json=payload, headers=headers) as r:
                     if r.status == 200:
                         data = await r.json()
-                        code = data['location'].split("code=")[1].split("&")[0]
-                        access_token, _ = await self._do_exchange(code=code, session=session)
-                        user_data = await self.get_user_data(access_token=access_token, session=session)
-                        user_data['access_token'] = access_token
-                        self.bot.logger.success(f"Authorized: {token}")
-                        return user_data
-                    else:
-                        self.bot.logger.error(f"Failed to authorize token {token[:10]}...")
-                        return None
+
+                        location_url = data.get("location")
+                        if location_url and "code=" in location_url:
+                            code = location_url.split("code=")[1].split("&")[0]
+                            access_token, _ = await self._do_exchange(code, session)
+                            user_data = await self.get_user_data(access_token, session)
+                            user_data['access_token'] = access_token
+                            self.bot.logger.success(f"Authorized: {token}")
+                            return user_data
+                        else:
+                            self.bot.logger.error(f"Failed to authorize token {token[:10]}...")
+                            return None
+
         except Exception as e:
             self.bot.logger.error(f"Error authorizing token {token[:10]}...: {str(e)}")
             return None
@@ -191,59 +205,23 @@ class TokenManager:
             "scope": "identify guilds.join",
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        async with session.post(url=oauth_url, data=payload, headers=headers) as r:
-            data = await r.json()
+        try:
+            async with session.post(url=oauth_url, data=payload, headers=headers) as r:
+                data = await r.json()
             return data.get("access_token"), data.get("refresh_token")
+        except aiohttp.ClientError as e:
+            self.bot.logger.error(f"Failed to exchange code for token: {str(e)}")
+            return None, None
 
     async def get_user_data(self, access_token: str, session: aiohttp.ClientSession):
         users_url = "https://discord.com/api/v10/users/@me"
         headers = {"Authorization": f"Bearer {access_token}"}
-        async with session.get(users_url, headers=headers) as r:
-            return await r.json()
-
-class WebApp:
-    def __init__(self, bot):
-        self.bot = bot
-        self.app = Flask(__name__)
-        self.setup_routes()
-
-    def setup_routes(self):
-        @self.app.route("/")
-        def home():
-            return '<a href="/login">Login with Discord</a>'
-
-        @self.app.route("/login")
-        def login():
-            return redirect(
-                f"https://discord.com/api/oauth2/authorize?client_id={self.bot.config['client_id']}&redirect_uri={self.bot.config['redirect_uri']}&response_type=code&scope=identify%20guilds.join"
-            )
-
-        @self.app.route("/callback")
-        def callback():
-            code = request.args.get("code")
-            if not code:
-                return "Error: No code provided", 400
-
-            data = {
-                "client_id": self.bot.config['client_id'],
-                "client_secret": self.bot.config['client_secret'],
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": self.bot.config['redirect_uri'],
-            }
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-            try:
-                r = requests.post(
-                    "https://discord.com/api/oauth2/token", data=data, headers=headers
-                )
-                r.raise_for_status()
-                return "Authorization successful! You can now use the /boost command in the Discord server."
-            except requests.RequestException as e:
-                return f"An error occurred: {str(e)}", 500
-
-    def run(self):
-        self.app.run(debug=False, use_reloader=False)
+        try:
+            async with session.get(users_url, headers=headers) as r:
+                return await r.json()
+        except aiohttp.ClientError as e:
+            self.bot.logger.error(f"Failed to get user data: {str(e)}")
+            return None
 
 class BoostingModal(disnake.ui.Modal):
     def __init__(self, bot) -> None:
@@ -291,11 +269,6 @@ class BoostingModal(disnake.ui.Modal):
 class OAuthBoost(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.web_app = WebApp(bot)
-        self.start_web_app()
-
-    def start_web_app(self):
-        threading.Thread(target=self.web_app.run, daemon=True).start()
 
     @commands.slash_command(
         name="oauth",
@@ -312,7 +285,7 @@ class OAuthBoost(commands.Cog):
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)
         except Exception as e:
-            self.bot.logger.error(str(e))
+            self.bot.logger.error(str(e)) # Unresolved attribute reference 'logger' for class 'Bot' ~ pycharm
             await inter.response.send_message("An error occurred while preparing the boost modal.", ephemeral=True)
 
 def setup(bot: commands.Bot):
