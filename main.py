@@ -139,7 +139,10 @@ class Bot(commands.InteractionBot): # no message commands
             return
 
         await super().process_commands(message) # type: ignore
+
+
 bot = Bot()
+
 
 @bot.listen("on_ready")
 async def on_ready_listener():
@@ -156,6 +159,7 @@ async def on_application_command(inter: disnake.ApplicationCommandInteraction):
         await inter.response.send_message(f"You're using commands too fast. Try again in {retry_after:.2f} seconds.", ephemeral=True)
         return
     await bot.process_application_commands(inter)
+
 
 # pip install git+https://github.com/DisnakeDev/disnake.git@feature/user-apps-v2
 if __name__ == "__main__":

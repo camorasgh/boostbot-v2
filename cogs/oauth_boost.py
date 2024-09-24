@@ -13,6 +13,7 @@ from disnake.ext import commands
 DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
 DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationType.guild, ApplicationIntegrationType.user]
 
+
 class TokenManager:
     def __init__(self, bot):
         self.bot = bot
@@ -223,6 +224,7 @@ class TokenManager:
             self.bot.logger.error(f"Failed to get user data: {str(e)}")
             return None
 
+
 class BoostingModal(disnake.ui.Modal):
     def __init__(self, bot) -> None:
         self.bot = bot
@@ -266,6 +268,7 @@ class BoostingModal(disnake.ui.Modal):
             self.bot.logger.error(str(e))
             await inter.followup.send("An error occurred while boosting.", ephemeral=True)
 
+
 class OAuthBoost(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -287,6 +290,7 @@ class OAuthBoost(commands.Cog):
         except Exception as e:
             self.bot.logger.error(str(e)) # Unresolved attribute reference 'logger' for class 'Bot' ~ pycharm
             await inter.response.send_message("An error occurred while preparing the boost modal.", ephemeral=True)
+
 
 def setup(bot: commands.Bot):
     bot.add_cog(OAuthBoost(bot))
