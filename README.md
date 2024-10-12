@@ -1,4 +1,5 @@
-# ... BoostBot <!-- add cool name here -->
+# Vortex BoostBot
+...
 
 ## Descritpion
 ... <!-- add desc here -->
