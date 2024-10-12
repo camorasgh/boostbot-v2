@@ -47,9 +47,9 @@ class BoostingModal(ui.Modal):
         self.bot = bot
         components = [
             ui.TextInput(
-                label="Guild ID",
-                placeholder="Enter the guild ID",
-                custom_id="boosting.guild_id",
+                label="Guild Invite",
+                placeholder="Enter the guild invite",
+                custom_id="boosting.guild_invite",
                 style=TextInputStyle.short,
                 min_length=18,
                 max_length=19,
@@ -66,7 +66,11 @@ class BoostingModal(ui.Modal):
         super().__init__(title="Join Booster", components=components)
     # not done yet
 
-
+# TODO:
+ # check valid invite
+# check valid boost amount
+# check valid token counts
+# we prob might just handle invite errors and token errors directly in joining to avoid making lot of requests
 class JoinBoost(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
