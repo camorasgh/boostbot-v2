@@ -43,6 +43,34 @@ class Log:
         """
         print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}-{Fore.RESET}] {msg}')
 
+class Filemanager:
+    def __init__():
+        pass
+
+    @staticmethod
+    def load_tokens(self):
+        """
+        Load tokens from a file
+        """
+        tokens = []
+        with open("./input/tokens.txt", "r") as file:
+                tokenlist = file.readlines()
+                for token in tokenlist:
+                    token = token.strip()
+                    parts = token.split(":")
+                    if len(parts) >= 3:
+                        token = parts[-1]
+                    elif (len(parts) == 1):  #  simple token
+                        token = parts[0]
+                    else:
+                        # Invalid token format, skipping
+                        continue
+                    if token:  # if token not empty string
+                        tokens.append(token)
+                if tokens == None:
+                    Log.console("No tokens inside of ./input/tokens.txt")
+        return tokens
+
 
 class Tokenmanager:
     def __init__(self, bot):
