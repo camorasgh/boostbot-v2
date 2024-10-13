@@ -1,3 +1,5 @@
+import tls_client
+
 from colorama import Fore, Style
 from disnake import InteractionContextType, ApplicationIntegrationType, ApplicationCommandInteraction, ui, TextInputStyle
 from disnake.ext import commands
@@ -41,6 +43,85 @@ class Log:
         """
         print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}-{Fore.RESET}] {msg}')
 
+
+class Tokenmanager:
+    def __init__(self, bot):
+        self.bot = bot
+        self.client = tls_client.Session(
+            client_identifier="chrome112",
+            random_tls_extension_order=True
+        )
+
+    @staticmethod
+    def headers(token: str):
+        """
+        Construct the headers
+        Args:
+        token [str]: The token used to construct the headers
+        """
+        headers = {
+            'authority': 'discord.com',
+            'accept': '*/*',
+            'accept-language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+            'authorization': token,
+            'content-type': 'application/json',
+            'origin': 'https://discord.com',
+            'referer': 'https://discord.com/channels/@me',
+            'sec-ch-ua': '"Chromium";v="112", "Google Chrome";v="112", "Not:A-Brand";v="99"',
+            'sec-ch-ua-mobile': '?0',
+            'sec-ch-ua-platform': '"Windows"',
+            'sec-fetch-dest': 'empty',
+            'sec-fetch-mode': 'cors',
+            'sec-fetch-site': 'same-origin',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36',
+            'x-context-properties': 'eyJsb2NhdGlvbiI6IkpvaW4gR3VpbGQiLCJsb2NhdGlvbl9ndWlsZF9pZCI6IjExMDQzNzg1NDMwNzg2Mzc1OTEiLCJsb2NhdGlvbl9jaGFubmVsX2lkIjoiMTEwNzI4NDk3MTkwMDYzMzIzMCIsImxvY2F0aW9uX2NoYW5uZWxfdHlwZSI6MH0=',
+            'x-debug-options': 'bugReporterEnabled',
+            'x-discord-locale': 'en-GB',
+            'x-super-properties': 'eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwic3lzdGVtX2xvY2FsZSI6Iml0LUlUIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzExMi4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTEyLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjE5MzkwNiwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbCwiZGVzaWduX2lkIjowfQ==',
+        }
+        return headers # "hardcoded things cuz idk but it works godly" ~ borgo 2k24
+
+
+    def get_boost_ids(self, token:str, proxy_:str):
+        """
+        Get the boost slots
+        token [str]: The token to boost the server with
+        proxy_ [str] The proxy to use to handle connections
+        """
+        try:
+            proxy = {
+                "http": "http://{}".format(proxy_),
+                "https": "https://{}".format(proxy_)
+
+            } if proxy_ else None
+            response = self.client.get(
+                url=f"https://canary.discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
+                headers=self.headers(token=token),
+                cookies=self.get_cookies(),
+                proxy=proxy
+            )
+            
+            response_json = response.json()
+            if response.status_code == 200:
+                if len(response_json) > 0:
+                    boost_ids = [boost['id'] for boost in response_json]
+                    return boost_ids # yippeee
+            elif response.status_code == 401 and response_json['message'] == "401: Unauthorized":
+                Log.err('Invalid Token ({})'.format(token))
+            elif response.status_code == 403 and response_json['message'] == "You need to verify your account in order to perform this action.":
+                Log.err('Flagged Token ({})'.format(token))
+            elif response.status_code == 400 and response_json['captcha_key'] == ['You need to update your app to join this server.']:
+                Log.err('\033[0;31m Hcaptcha ({})'.format(token))
+            elif response_json['message'] == "404: Not Found":
+                Log.err("No Nitro D:")
+            else:
+                Log.err('Invalid response ({})'.format(response_json))
+            return None
+        
+        except Exception as e:
+            Log.err('Unknown error occurred in boosting guild: {}'.format(e))
+            return None
+        
 
 class BoostingModal(ui.Modal):
     def __init__(self, bot) -> None:

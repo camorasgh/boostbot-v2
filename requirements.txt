@@ -1,3 +1,4 @@
 git+https://github.com/DisnakeDev/disnake.git@feature/user-apps-v2#egg=disnake
 colorama==0.4.6
 aiohttp==3.10.5
+tls-client==1.0.1
