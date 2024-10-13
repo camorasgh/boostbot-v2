@@ -230,9 +230,9 @@ class BoostingModal(disnake.ui.Modal):
         self.bot = bot
         components = [
             disnake.ui.TextInput(
-                label="Guild ID",
-                placeholder="Enter the guild ID",
-                custom_id="boosting.guild_id",
+                label="Guild Invite",
+                placeholder="Enter the guild Invite",
+                custom_id="boosting.guild_invite",
                 style=disnake.TextInputStyle.short,
                 min_length=18,
                 max_length=19,
@@ -251,7 +251,7 @@ class BoostingModal(disnake.ui.Modal):
     async def callback(self, inter: disnake.ModalInteraction) -> None:
         await inter.response.defer(ephemeral=True)
         try:
-            guild_id = inter.text_values['boosting.guild_id']
+            guild_id = inter.text_values['boosting.guild_invite']
             amount = int(inter.text_values['boosting.amount'])
             token_manager = TokenManager(self.bot)
             await token_manager.process_tokens(guild_id, amount)
