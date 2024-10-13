@@ -58,9 +58,9 @@ class Filemanager:
                 for token in tokenlist:
                     token = token.strip()
                     parts = token.split(":")
-                    if len(parts) >= 3:
+                    if len(parts) >= 3: # mail:pass:token
                         token = parts[-1]
-                    elif (len(parts) == 1):  #  simple token
+                    elif (len(parts) == 1):  # token only
                         token = parts[0]
                     else:
                         # Invalid token format, skipping
@@ -79,6 +79,7 @@ class Tokenmanager:
             client_identifier="chrome112",
             random_tls_extension_order=True
         )
+
 
     @staticmethod
     def headers(token: str):
@@ -141,7 +142,7 @@ class Tokenmanager:
             elif response.status_code == 400 and response_json['captcha_key'] == ['You need to update your app to join this server.']:
                 Log.err('\033[0;31m Hcaptcha ({})'.format(token))
             elif response_json['message'] == "404: Not Found":
-                Log.err("No Nitro D:")
+                Log.err("No Nitro") # D:
             else:
                 Log.err('Invalid response ({})'.format(response_json))
             return None
@@ -173,10 +174,10 @@ class BoostingModal(ui.Modal):
             ),
         ]
         super().__init__(title="Join Booster", components=components)
-    # not done yet
+    # not done yet ; borgo send help with callback
 
 # TODO:
- # check valid invite
+# check valid invite
 # check valid boost amount
 # check valid token counts
 # we prob might just handle invite errors and token errors directly in joining to avoid making lot of requests
