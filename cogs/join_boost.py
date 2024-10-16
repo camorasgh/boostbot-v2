@@ -1,9 +1,11 @@
+import asyncio
 import tls_client
 
 from colorama import Fore, Style
-from disnake import InteractionContextType, ApplicationIntegrationType, ApplicationCommandInteraction, ui, TextInputStyle
+from disnake import InteractionContextType, ApplicationIntegrationType, ApplicationCommandInteraction
+from disnake import ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
-
+from typing import Dict
 
 DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
 DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationType.guild, ApplicationIntegrationType.user]
@@ -79,6 +81,8 @@ class Tokenmanager:
             client_identifier="chrome112",
             random_tls_extension_order=True
         )
+        self.join_results: Dict[str, bool] = {}
+        self.boost_results: Dict[str, bool] = {}
 
 
     @staticmethod
@@ -135,22 +139,46 @@ class Tokenmanager:
                 if len(response_json) > 0:
                     boost_ids = [boost['id'] for boost in response_json]
                     return boost_ids # yippeee
+                
             elif response.status_code == 401 and response_json['message'] == "401: Unauthorized":
                 Log.err('Invalid Token ({})'.format(token))
+
             elif response.status_code == 403 and response_json['message'] == "You need to verify your account in order to perform this action.":
                 Log.err('Flagged Token ({})'.format(token))
+
             elif response.status_code == 400 and response_json['captcha_key'] == ['You need to update your app to join this server.']:
                 Log.err('\033[0;31m Hcaptcha ({})'.format(token))
+
             elif response_json['message'] == "404: Not Found":
                 Log.err("No Nitro") # D:
+
             else:
                 Log.err('Invalid response ({})'.format(response_json))
+
             return None
         
         except Exception as e:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
-        
+
+    async def process_single_token(self, token: str, guild_invite: str):
+        try:
+            joined = await join_guild(user_id, token, guild_invite)
+            guild_id = fetching_guild_id # or something like that
+            if joined:
+                boosted = await boost_server(token, guild_id)
+                self.boost_results[user_id] = boosted
+            else:
+                self.boost_results[user_id] = False
+        except Exception as e:
+            self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
+
+
+    async def process_tokens(self, guild_invite: str, amount: int):
+        tokens_to_process = await self.load_tokens(amount)
+        tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
+        await asyncio.gather(*tasks) 
+
 
 class BoostingModal(ui.Modal):
     def __init__(self, bot) -> None:
@@ -174,7 +202,19 @@ class BoostingModal(ui.Modal):
             ),
         ]
         super().__init__(title="Join Booster", components=components)
-    # not done yet ; borgo send help with callback
+
+    async def callback(self, interaction: ModalInteraction) -> None:
+        await interaction.response.defer(ephemeral=True)
+        try:
+            guild_invite = interaction.text_values['boosting.guild_invite']
+            amount = int(interaction.text_values['boosting.amount'])
+            token_mngr = Tokenmanager(self.bot)
+            await token_mngr.process_tokens(guild_invite, amount)
+
+        except Exception as e:
+            self.bot.logger.error(str(e))
+            await interaction.followup.send("An error occurred while boosting.", ephemeral=True)
+
 
 # TODO:
 # check valid invite
