@@ -160,11 +160,30 @@ class Tokenmanager:
         except Exception as e:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
+    async def fetch_id(self, token: str, inv: str, proxy_):
+        url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
+        proxy = {
+                "http": "http://{}".format(proxy_),
+                "https": "https://{}".format(proxy_)
 
+            } if proxy_ else None
+        r = self.client.get(
+            url=url,
+            headers = {
+                "Authorization": token
+            },
+            cookies=self.get_cookies(),
+            proxy=proxy
+            } 
+        if r.status_code == 200:
+            return r['guild']['id']
+        else:
+            raise "error yuh"
+            
     async def process_single_token(self, token: str, guild_invite: str):
         try:
             joined = await join_guild(user_id, token, guild_invite)
-            guild_id = fetching_guild_id # or something like that
+            guild_id = self.fetch_id... # this code is not done
             if joined:
                 boosted = await boost_server(token, guild_id)
                 self.boost_results[user_id] = boosted
