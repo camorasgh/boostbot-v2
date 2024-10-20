@@ -1,4 +1,5 @@
 import asyncio
+import random
 import tls_client
 
 from colorama import Fore, Style
@@ -46,8 +47,8 @@ class Log:
         print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}-{Fore.RESET}] {msg}')
 
 class Filemanager:
-    def __init__():
-        pass
+    def __init__(self):
+        self.proxies = []
 
     @staticmethod
     def load_tokens(self):
@@ -72,7 +73,30 @@ class Filemanager:
                 if tokens == None:
                     Log.console("No tokens inside of ./input/tokens.txt")
         return tokens
+    
+    async def load_proxies(self) -> None:
+        try:
+            with open("./input/proxies.txt", "r") as file:
+                self.proxies = [self.format_proxy(line.strip()) for line in file if line.strip()]
+            self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
+        except FileNotFoundError:
+            self.bot.logger.error("proxies.txt file not found.")
+        except Exception as e:
+            self.bot.logger.error(f"Error loading proxies: {str(e)}")
 
+    @staticmethod
+    def format_proxy(proxy: str) -> str:
+        if '@' in proxy:
+            auth, ip_port = proxy.split('@')
+            return f"http://{auth}@{ip_port}"
+        return f"http://{proxy}"
+
+    def get_random_proxy(self) -> str:
+        """Return a random proxy from the loaded list, or None if no proxies are available."""
+        self.load_proxies()
+        if self.proxies:
+            return random.choice(self.proxies)
+        return None
 
 class Tokenmanager:
     def __init__(self, bot):
@@ -83,6 +107,7 @@ class Tokenmanager:
         )
         self.join_results: Dict[str, bool] = {}
         self.boost_results: Dict[str, bool] = {}
+        self.filemanager = Filemanager()
 
 
     @staticmethod
@@ -160,6 +185,7 @@ class Tokenmanager:
         except Exception as e:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
+
     async def fetch_id(self, token: str, inv: str, proxy_):
         url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
         proxy = {
@@ -174,7 +200,7 @@ class Tokenmanager:
             },
             cookies=self.get_cookies(),
             proxy=proxy
-            } 
+            ) 
         if r.status_code == 200:
             return r['guild']['id']
         else:
@@ -182,8 +208,10 @@ class Tokenmanager:
             
     async def process_single_token(self, token: str, guild_invite: str):
         try:
-            joined = await join_guild(user_id, token, guild_invite)
-            guild_id = self.fetch_id... # this code is not done
+            selected_proxy = self.filemanager.get_random_proxy()
+            user_id = await get_userid(token=token, proxy_=selected_proxy) # still needs to be made
+            joined = await join_guild(userid=user_id, token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | is user_id even required?
+            guild_id = int(self.fetch_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
                 boosted = await boost_server(token, guild_id)
                 self.boost_results[user_id] = boosted
