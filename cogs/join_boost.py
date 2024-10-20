@@ -51,28 +51,41 @@ class Filemanager:
         self.proxies = []
 
     @staticmethod
-    def load_tokens(self):
+    async def load_tokens(self, amount):
         """
-        Load tokens from a file
+        Load a specified number of tokens from a file.
+        
+        Args:
+            amount (int): The number of tokens to load.
+
+        Returns:
+            list: A list of loaded tokens.
+            
+        Raises:
+            ValueError: If the number of tokens in the file is less than the specified amount.
         """
         tokens = []
         with open("./input/tokens.txt", "r") as file:
-                tokenlist = file.readlines()
-                for token in tokenlist:
-                    token = token.strip()
-                    parts = token.split(":")
-                    if len(parts) >= 3: # mail:pass:token
-                        token = parts[-1]
-                    elif (len(parts) == 1):  # token only
-                        token = parts[0]
-                    else:
-                        # Invalid token format, skipping
-                        continue
-                    if token:  # if token not empty string
-                        tokens.append(token)
-                if tokens == None:
-                    Log.console("No tokens inside of ./input/tokens.txt")
-        return tokens
+            tokenlist = file.readlines()
+            for token in tokenlist:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+                
+                if token:  # if token not empty string
+                    tokens.append(token)
+
+        if len(tokens) < amount:
+            raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)}")
+
+        return tokens[:amount]  # Return only the requested amount of tokens
+
     
     async def load_proxies(self) -> None:
         try:
@@ -85,13 +98,13 @@ class Filemanager:
             self.bot.logger.error(f"Error loading proxies: {str(e)}")
 
     @staticmethod
-    def format_proxy(proxy: str) -> str:
+    async def format_proxy(proxy: str) -> str:
         if '@' in proxy:
             auth, ip_port = proxy.split('@')
             return f"http://{auth}@{ip_port}"
         return f"http://{proxy}"
 
-    def get_random_proxy(self) -> str:
+    async def get_random_proxy(self) -> str:
         """Return a random proxy from the loaded list, or None if no proxies are available."""
         self.load_proxies()
         if self.proxies:
@@ -140,7 +153,7 @@ class Tokenmanager:
         return headers # "hardcoded things cuz idk but it works godly" ~ borgo 2k24
 
 
-    def get_boost_ids(self, token:str, proxy_:str):
+    async def get_boost_ids(self, token:str, proxy_:str):
         """
         Get the boost slots
         token [str]: The token to boost the server with
@@ -222,7 +235,7 @@ class Tokenmanager:
 
 
     async def process_tokens(self, guild_invite: str, amount: int):
-        tokens_to_process = await self.load_tokens(amount)
+        tokens_to_process = await Filemanager.load_tokens(amount)
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks) 
 
@@ -256,7 +269,7 @@ class BoostingModal(ui.Modal):
             guild_invite = interaction.text_values['boosting.guild_invite']
             amount = int(interaction.text_values['boosting.amount'])
             token_mngr = Tokenmanager(self.bot)
-            await token_mngr.process_tokens(guild_invite, amount)
+            await token_mngr.process_tokens(guild_invite=guild_invite, amount=amount)
 
         except Exception as e:
             self.bot.logger.error(str(e))
