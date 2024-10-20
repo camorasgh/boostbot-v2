@@ -209,9 +209,9 @@ class Tokenmanager:
     async def process_single_token(self, token: str, guild_invite: str):
         try:
             selected_proxy = self.filemanager.get_random_proxy()
-            user_id = await get_userid(token=token, proxy_=selected_proxy) # still needs to be made
+            user_id = int(await get_userid(token=token, proxy_=selected_proxy)) # still needs to be made
             joined = await join_guild(userid=user_id, token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | is user_id even required?
-            guild_id = int(self.fetch_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
+            guild_id = int(await self.fetch_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
                 boosted = await boost_server(token, guild_id)
                 self.boost_results[user_id] = boosted
