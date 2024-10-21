@@ -157,8 +157,9 @@ class Tokenmanager:
     async def get_boost_ids(self, token:str, proxy_:str):
         """
         Get the boost slots
+        Args:
         token [str]: The token to boost the server with
-        proxy_ [str] The proxy to use to handle connections
+        proxy_ [str]: The proxy to use to handle connections
         """
         try:
             proxy = {
@@ -201,6 +202,11 @@ class Tokenmanager:
             return None
             
     async def get_userid(self, token):
+        """
+        Uses base64 to decode the first part of the token into the discord ID
+        Args:
+        token [str]: The single token that gets processed
+        """
         first_part = token.split('.')[0]    # cause 3 parts of token
         
         # Add padding if necessary          | cause base64 requirement of being divided by 4
@@ -214,6 +220,13 @@ class Tokenmanager:
         return decoded_str
         
     async def fetch_guild_id(self, token: str, inv: str, proxy_):
+        """
+        Fetches the Guild ID via Invite code
+        Args:
+        token [str]: The single token that gets processed
+        inv [str]: The discord invite code
+        proxy [str (i suppose)]: additional proxy if used
+        """
         url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
         proxy = {
                 "http": "http://{}".format(proxy_),
