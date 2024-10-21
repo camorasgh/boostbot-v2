@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import random
 import tls_client
 
@@ -198,8 +199,21 @@ class Tokenmanager:
         except Exception as e:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
-
-    async def fetch_id(self, token: str, inv: str, proxy_):
+            
+    async def get_userid(self, token):
+        first_part = token.split('.')[0]    # cause 3 parts of token
+        
+        # Add padding if necessary          | cause base64 requirement of being divided by 4
+        missing_padding = len(first_part) % 4
+        if missing_padding:
+            first_part += '=' * (4 - missing_padding)
+        
+        decoded_bytes = base64.b64decode(first_part)
+        decoded_str = decoded_bytes.decode('utf-8')
+        
+        return decoded_str
+        
+    async def fetch_guild_id(self, token: str, inv: str, proxy_):
         url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
         proxy = {
                 "http": "http://{}".format(proxy_),
@@ -222,9 +236,9 @@ class Tokenmanager:
     async def process_single_token(self, token: str, guild_invite: str):
         try:
             selected_proxy = self.filemanager.get_random_proxy()
-            user_id = int(await get_userid(token=token, proxy_=selected_proxy)) # still needs to be made
+            user_id = int(await self.get_userid(token=token)) # still needs to be made
             joined = await join_guild(userid=user_id, token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | is user_id even required?
-            guild_id = int(await self.fetch_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
+            guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
                 boosted = await boost_server(token, guild_id)
                 self.boost_results[user_id] = boosted
