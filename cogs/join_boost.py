@@ -244,7 +244,7 @@ class Tokenmanager:
         if r.status_code == 200:
             return r['guild']['id']
         else:
-            raise "error yuh"
+            raise Exception(f"Failed to fetch guild ID. Status code: {r.status_code}, Response: {r.text}")
             
     async def process_single_token(self, token: str, guild_invite: str):
         try:
