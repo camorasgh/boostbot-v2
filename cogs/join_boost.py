@@ -9,7 +9,7 @@ from colorama import Fore, Style
 from disnake import InteractionContextType, ApplicationIntegrationType, ApplicationCommandInteraction
 from disnake import ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
-from typing import Dict
+from typing import Dict, Any
 
 DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
 DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationType.guild, ApplicationIntegrationType.user]
@@ -50,11 +50,12 @@ class Log:
         print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}-{Fore.RESET}] {msg}')
 
 class Filemanager:
-    def __init__(self):
+    def __init__(self, bot):
         self.proxies = []
+        self.bot = bot
 
     @staticmethod
-    async def load_tokens(self, amount):
+    async def load_tokens(amount):
         """
         Load a specified number of tokens from a file.
         
@@ -107,9 +108,9 @@ class Filemanager:
             return f"http://{auth}@{ip_port}"
         return f"http://{proxy}"
 
-    async def get_random_proxy(self) -> str:
+    async def get_random_proxy(self) -> Any | None:
         """Return a random proxy from the loaded list, or None if no proxies are available."""
-        self.load_proxies()
+        await self.load_proxies()
         if self.proxies:
             return random.choice(self.proxies)
         return None
@@ -118,17 +119,15 @@ class Tokenmanager:
     def __init__(self, bot):
         self.bot = bot
         self.client = tls_client.Session(
-            client_identifier="chrome112",
+            client_identifier="chrome_112",
             random_tls_extension_order=True
         )
         self.join_results: Dict[str, bool] = {}
         self.boost_results: Dict[str, bool] = {}
-        self.filemanager = Filemanager()
+        self.filemanager = Filemanager(bot=self.bot)
         self.joined_count = 0
         self.not_joined_count = 0
 
-
-    @staticmethod
     def cookies(self):
         """
         Retrieve cookies dict
@@ -172,7 +171,7 @@ class Tokenmanager:
             'x-discord-locale': 'en-GB',
             'x-super-properties': 'eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwic3lzdGVtX2xvY2FsZSI6Iml0LUlUIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzExMi4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTEyLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjE5MzkwNiwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbCwiZGVzaWduX2lkIjowfQ==',
         }
-        return headers # "hardcoded things cuz idk but it works godly" ~ borgo 2k24
+        return headers # "hardcoded things cuz IDK but it works godly" ~ borgo 2k24
 
 
     async def get_boost_ids(self, token:str, proxy_:str):
@@ -191,7 +190,7 @@ class Tokenmanager:
             response = self.client.get(
                 url=f"https://canary.discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
                 headers=self.headers(token=token),
-                cookies=self.get_cookies(),
+                cookies=self.cookies(),
                 proxy=proxy
             )
             
@@ -222,7 +221,8 @@ class Tokenmanager:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
             
-    async def get_userid(self, token):
+    @staticmethod
+    async def get_userid(token):
         """
         Uses base64 to decode the first part of the token into the discord ID
         Args:
@@ -246,7 +246,7 @@ class Tokenmanager:
         Args:
         token [str]: The single token that gets processed
         inv [str]: The discord invite code
-        proxy [str (i suppose)]: additional proxy if used
+        proxy [str (I suppose)]: additional proxy if used
         """
         url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
         proxy = {
@@ -259,11 +259,11 @@ class Tokenmanager:
             headers = {
                 "Authorization": token
             },
-            cookies=self.get_cookies(),
+            cookies=self.cookies(),
             proxy=proxy
             ) 
         if r.status_code == 200:
-            return r['guild']['id']
+            return r.json()['guild']['id'] # IDK if that is correct
         else:
             raise Exception(f"Failed to fetch guild ID. Status code: {r.status_code}, Response: {r.text}")
 
@@ -302,7 +302,6 @@ class Tokenmanager:
         r_json = response.json()
         if response.status_code == 200:
             Log.succ('Joined! {} ({})'.format(token, invite_code))
-            self.write_joined_token(token, invite_code)
             self.joined_count += 1
            
         elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
@@ -337,7 +336,8 @@ class Tokenmanager:
                 #self.boost_results[user_id] = boosted
                 pass
             else:
-                self.boost_results[user_id] = False
+                #self.boost_results[user_id] = False
+                pass
         except Exception as e:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
