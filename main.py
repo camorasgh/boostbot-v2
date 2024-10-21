@@ -77,7 +77,7 @@ class Cogloader:
 
         }
         if len(self.errors) > 0:
-            results['errors'] = ', '.join(error for error in self.errors)
+            results['errors'] = ', '.join(str(error) for error in self.errors)
         return results
 
     def load(self):
@@ -149,7 +149,9 @@ async def on_ready_listener():
     cogs = Cogloader(bot)
     cogs.load()
     Logger.success(f"Bot is online as: {bot.user.name}")
-
+    Logger.info(f"Loaded {cogs.get_results()}")
+    Logger.info(f"Owner(s): {', '.join(str(owner) for owner in bot.owner_ids)}")
+    Logger.info(f"Commands: {len(bot.all_slash_commands)}")
 
 @bot.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):

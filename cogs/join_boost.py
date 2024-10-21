@@ -6,13 +6,15 @@ import string
 import tls_client
 
 from colorama import Fore, Style
-from disnake import InteractionContextType, ApplicationIntegrationType, ApplicationCommandInteraction
+
 from disnake import ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
 from typing import Dict
 
-DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
-DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationType.guild, ApplicationIntegrationType.user]
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
+
+DEFAULT_CONTEXTS = [InteractionContextTypes.private_channel, InteractionContextTypes.guild]
+DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationTypes.guild, ApplicationIntegrationTypes.user]
 
 
 class Log:
@@ -54,7 +56,7 @@ class Filemanager:
         self.proxies = []
 
     @staticmethod
-    async def load_tokens(self, amount):
+    async def load_tokens(amount):
         """
         Load a specified number of tokens from a file.
         
@@ -84,32 +86,33 @@ class Filemanager:
                 if token:  # if token not empty string
                     tokens.append(token)
 
-        if len(tokens) < amount:
-            raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)}")
-
-        return tokens[:amount]  # Return only the requested amount of tokens
+        available_tokens = len(tokens) * 2
+        if available_tokens < amount:
+            raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
+        
+        return tokens[:amount // 2]
 
     
     async def load_proxies(self) -> None:
         try:
             with open("./input/proxies.txt", "r") as file:
-                self.proxies = [self.format_proxy(line.strip()) for line in file if line.strip()]
-            self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
+                self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
+            Log.console(f"Loaded {len(self.proxies)} proxies")
         except FileNotFoundError:
-            self.bot.logger.error("proxies.txt file not found.")
+            Log.err("proxies.txt file not found.")
         except Exception as e:
-            self.bot.logger.error(f"Error loading proxies: {str(e)}")
+            Log.err(f"Error loading proxies: {str(e)}")
 
     @staticmethod
     async def format_proxy(proxy: str) -> str:
         if '@' in proxy:
             auth, ip_port = proxy.split('@')
-            return f"http://{auth}@{ip_port}"
-        return f"http://{proxy}"
+            return f"{auth}@{ip_port}"
+        return f"{proxy}"
 
     async def get_random_proxy(self) -> str:
         """Return a random proxy from the loaded list, or None if no proxies are available."""
-        self.load_proxies()
+        await self.load_proxies()
         if self.proxies:
             return random.choice(self.proxies)
         return None
@@ -128,7 +131,7 @@ class Tokenmanager:
         self.not_joined_count = 0
 
 
-    @staticmethod
+    
     def cookies(self):
         """
         Retrieve cookies dict
@@ -290,7 +293,7 @@ class Tokenmanager:
             "https": "https://{}".format(proxy_)
 
         } if proxy_ else None
-
+        
         response = self.client.post(
             url='https://discord.com/api/v9/invites/{}'.format(invite_code),
             headers=self.headers(token=token),
@@ -302,7 +305,7 @@ class Tokenmanager:
         r_json = response.json()
         if response.status_code == 200:
             Log.succ('Joined! {} ({})'.format(token, invite_code))
-            self.write_joined_token(token, invite_code)
+            self.write_joined_token(token, invite_code) # Here error
             self.joined_count += 1
            
         elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
@@ -328,7 +331,7 @@ class Tokenmanager:
 
     async def process_single_token(self, token: str, guild_invite: str):
         try:
-            selected_proxy = self.filemanager.get_random_proxy()
+            selected_proxy = await self.filemanager.get_random_proxy()
             user_id = int(await self.get_userid(token=token)) # still needs to be made
             joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
@@ -396,8 +399,8 @@ class JoinBoost(commands.Cog):
     @commands.slash_command(
         name="join",
         description="Join group handler",
-        contexts=DEFAULT_CONTEXTS,
-        integration_types=DEFAULT_INTEGRATION_TYPES
+        #contexts=DEFAULT_CONTEXTS,
+        #integration_types=DEFAULT_INTEGRATION_TYPES
     )
     async def join_decorator(self, inter: ApplicationCommandInteraction):
         pass

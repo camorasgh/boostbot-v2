@@ -6,12 +6,13 @@ from typing import List, Dict, Optional
 
 import aiohttp
 import disnake
-from disnake import InteractionContextType, ApplicationIntegrationType
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake.ext import commands
 
 # Constants
-DEFAULT_CONTEXTS = [InteractionContextType.guild, InteractionContextType.private_channel]
-DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationType.guild, ApplicationIntegrationType.user]
+
+DEFAULT_CONTEXTS = [InteractionContextTypes.private_channel, InteractionContextTypes.guild]
+DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationTypes.guild, ApplicationIntegrationTypes.user]
 
 
 class TokenManager:
@@ -276,8 +277,8 @@ class OAuthBoost(commands.Cog):
     @commands.slash_command(
         name="oauth",
         description="OAUTH group handler",
-        contexts=DEFAULT_CONTEXTS,
-        integration_types=DEFAULT_INTEGRATION_TYPES
+        #contexts=DEFAULT_CONTEXTS,
+        #integration_types=DEFAULT_INTEGRATION_TYPES
     )
     async def oauth_decorator(self, inter: disnake.ApplicationCommandInteraction):
         pass
