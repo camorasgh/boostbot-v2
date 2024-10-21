@@ -327,7 +327,7 @@ class Tokenmanager:
 
     async def process_single_token(self, token: str, guild_invite: str):
         try:
-            selected_proxy = self.filemanager.get_random_proxy()
+            selected_proxy = await self.filemanager.get_random_proxy()
             user_id = int(await self.get_userid(token=token)) # still needs to be made
             joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
