@@ -333,8 +333,9 @@ class Tokenmanager:
             joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
-                boosted = await boost_server(token, guild_id)
-                self.boost_results[user_id] = boosted
+                #boosted = await boost_server(token, guild_id)
+                #self.boost_results[user_id] = boosted
+                pass
             else:
                 self.boost_results[user_id] = False
         except Exception as e:
@@ -356,8 +357,8 @@ class BoostingModal(ui.Modal):
                 placeholder="Enter the guild invite",
                 custom_id="boosting.guild_invite",
                 style=TextInputStyle.short,
-                min_length=18,
-                max_length=19,
+                min_length=3,
+                max_length=30,
             ),
             ui.TextInput(
                 label="Amount",
@@ -365,7 +366,7 @@ class BoostingModal(ui.Modal):
                 custom_id="boosting.amount",
                 style=TextInputStyle.short,
                 min_length=1,
-                max_length=3
+                max_length=2
             ),
         ]
         super().__init__(title="Join Booster", components=components)
