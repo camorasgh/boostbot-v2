@@ -225,7 +225,7 @@ class Tokenmanager:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
 
-    async def get_userid(self, token):
+    async def get_userid(self, token): # "may be static" ~ pycharm (woah)
         """
         Uses base64 to decode the first part of the token into the discord ID
         Args:
@@ -242,34 +242,6 @@ class Tokenmanager:
         decoded_str = decoded_bytes.decode('utf-8')
 
         return decoded_str
-
-    async def fetch_guild_id(self, token: str, inv: str, proxy_):
-        """
-        Fetches the Guild ID via Invite code
-        Args:
-        token [str]: The single token that gets processed
-        inv [str]: The discord invite code
-        proxy [str (i suppose)]: additional proxy if used
-        """
-        url = f"https://discord.com/api/v9/invites/{inv}?inputValue={inv}&with_counts=true&with_expiration=true"
-        proxy = {
-                "http": "http://{}".format(proxy_),
-                "https": "https://{}".format(proxy_)
-
-            } if proxy_ else None
-        r = self.client.get(
-            url=url,
-            headers = {
-                "Authorization": token
-            },
-            cookies=self.get_cookies(),
-            proxy=proxy
-            ) 
-        if r.status_code == 200:
-            return r['guild']['id']
-        else:
-            raise Exception(f"Failed to fetch guild ID. Status code: {r.status_code}, Response: {r.text}")
-
 
     async def join_guild(self, token, inv, proxy_):
         """
@@ -307,6 +279,8 @@ class Tokenmanager:
             Log.succ('Joined! {} ({})'.format(token, invite_code))
             self.write_joined_token(token, invite_code) # Here error
             self.joined_count += 1
+            guild_id = r_json.get("guild", {}).get("id")
+            return True, guild_id
            
         elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
             Log.err('Invalid Token ({})'.format(token))
@@ -333,11 +307,10 @@ class Tokenmanager:
         try:
             selected_proxy = await self.filemanager.get_random_proxy()
             user_id = str(await self.get_userid(token=token)) # still needs to be made
-            joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
-            guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
+            joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
                 #boosted = await boost_server(token, guild_id)
-                #self.boost_results[user_id] = boosted
+                #self.boost_results[user_id] = True
                 pass
             else:
                 self.boost_results[user_id] = False
