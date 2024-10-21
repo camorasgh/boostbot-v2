@@ -224,7 +224,7 @@ class Tokenmanager:
         except Exception as e:
             Log.err('Unknown error occurred in boosting guild: {}'.format(e))
             return None
-            
+
     async def get_userid(self, token):
         """
         Uses base64 to decode the first part of the token into the discord ID
@@ -232,17 +232,17 @@ class Tokenmanager:
         token [str]: The single token that gets processed
         """
         first_part = token.split('.')[0]    # cause 3 parts of token
-        
+
         # Add padding if necessary          | cause base64 requirement of being divided by 4
         missing_padding = len(first_part) % 4
         if missing_padding:
             first_part += '=' * (4 - missing_padding)
-        
+
         decoded_bytes = base64.b64decode(first_part)
         decoded_str = decoded_bytes.decode('utf-8')
-        
+
         return decoded_str
-        
+
     async def fetch_guild_id(self, token: str, inv: str, proxy_):
         """
         Fetches the Guild ID via Invite code
@@ -332,7 +332,7 @@ class Tokenmanager:
     async def process_single_token(self, token: str, guild_invite: str):
         try:
             selected_proxy = await self.filemanager.get_random_proxy()
-            user_id = int(await self.get_userid(token=token)) # still needs to be made
+            user_id = str(await self.get_userid(token=token)) # still needs to be made
             joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
