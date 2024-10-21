@@ -9,7 +9,7 @@ from colorama import Fore, Style
 
 from disnake import ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
-from typing import Dict
+from typing import Dict, Any
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 
@@ -110,7 +110,7 @@ class Filemanager:
             return f"{auth}@{ip_port}"
         return f"{proxy}"
 
-    async def get_random_proxy(self) -> str:
+    async def get_random_proxy(self) -> Any | None:
         """Return a random proxy from the loaded list, or None if no proxies are available."""
         await self.load_proxies()
         if self.proxies:
@@ -121,7 +121,7 @@ class Tokenmanager:
     def __init__(self, bot):
         self.bot = bot
         self.client = tls_client.Session(
-            client_identifier="chrome112",
+            client_identifier="chrome_112",
             random_tls_extension_order=True
         )
         self.join_results: Dict[str, bool] = {}
@@ -132,7 +132,7 @@ class Tokenmanager:
 
 
     
-    def cookies(self):
+    def get_cookies(self):
         """
         Retrieve cookies dict
         """
@@ -298,7 +298,7 @@ class Tokenmanager:
             url='https://discord.com/api/v9/invites/{}'.format(invite_code),
             headers=self.headers(token=token),
             json=payload,
-            cookies=self.cookies(),
+            cookies=self.get_cookies(),
             proxy=proxy
         )
 
