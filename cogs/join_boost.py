@@ -85,7 +85,7 @@ class Filemanager:
                 if token:  # if token not empty string
                     tokens.append(token)
 
-        if len(tokens) < amount:
+        if len(tokens) < (amount/2):
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)}")
 
         return tokens[:amount]  # Return only the requested amount of tokens
