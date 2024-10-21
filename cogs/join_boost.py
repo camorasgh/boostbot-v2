@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import random
+import re
+import string
 import tls_client
 
 from colorama import Fore, Style
@@ -122,8 +124,27 @@ class Tokenmanager:
         self.join_results: Dict[str, bool] = {}
         self.boost_results: Dict[str, bool] = {}
         self.filemanager = Filemanager()
+        self.joined_count = 0
+        self.not_joined_count = 0
 
 
+    @staticmethod
+    def cookies(self):
+        """
+        Retrieve cookies dict
+        """
+        cookies = {}
+        try:
+            response = self.client.get('https://discord.com')
+            for cookie in response.cookies:
+                if cookie.name.startswith('__') and cookie.name.endswith('uid'):
+                    cookies[cookie.name] = cookie.value
+                return cookies
+        
+        except Exception as e:
+            print('Failed to obtain cookies ({})'.format(e))
+            return cookies
+    
     @staticmethod
     def headers(token: str):
         """
@@ -174,26 +195,26 @@ class Tokenmanager:
                 proxy=proxy
             )
             
-            response_json = response.json()
+            r_json = response.json()
             if response.status_code == 200:
-                if len(response_json) > 0:
-                    boost_ids = [boost['id'] for boost in response_json]
+                if len(r_json) > 0:
+                    boost_ids = [boost['id'] for boost in r_json]
                     return boost_ids # yippeee
                 
-            elif response.status_code == 401 and response_json['message'] == "401: Unauthorized":
+            elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
                 Log.err('Invalid Token ({})'.format(token))
 
-            elif response.status_code == 403 and response_json['message'] == "You need to verify your account in order to perform this action.":
+            elif response.status_code == 403 and r_json['message'] == "You need to verify your account in order to perform this action.":
                 Log.err('Flagged Token ({})'.format(token))
 
-            elif response.status_code == 400 and response_json['captcha_key'] == ['You need to update your app to join this server.']:
+            elif response.status_code == 400 and r_json['captcha_key'] == ['You need to update your app to join this server.']:
                 Log.err('\033[0;31m Hcaptcha ({})'.format(token))
 
-            elif response_json['message'] == "404: Not Found":
+            elif r_json['message'] == "404: Not Found":
                 Log.err("No Nitro") # D:
 
             else:
-                Log.err('Invalid response ({})'.format(response_json))
+                Log.err('Invalid response ({})'.format(r_json))
 
             return None
         
@@ -245,12 +266,71 @@ class Tokenmanager:
             return r['guild']['id']
         else:
             raise Exception(f"Failed to fetch guild ID. Status code: {r.status_code}, Response: {r.text}")
-            
+
+
+    async def join_guild(self, token, inv, proxy_):
+        """
+        Joins guild via token
+        token [str]: token that joins
+        inv [str]: Invite (will get formatted correctly)
+        proxy : proxy to be used (none if none)
+        """
+        payload = {
+            'session_id': ''.join(random.choice(string.ascii_lowercase) + random.choice(string.digits) for _ in range(16))
+        }
+        invite_code = r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$"
+        match = re.search(invite_code, inv)
+        if match:
+            invite_code = match.group(2)
+        else:
+            pass
+
+        proxy = {
+            "http": "http://{}".format(proxy_),
+            "https": "https://{}".format(proxy_)
+
+        } if proxy_ else None
+
+        response = self.client.post(
+            url='https://discord.com/api/v9/invites/{}'.format(invite_code),
+            headers=self.headers(token=token),
+            json=payload,
+            cookies=self.cookies(),
+            proxy=proxy
+        )
+
+        r_json = response.json()
+        if response.status_code == 200:
+            Log.succ('Joined! {} ({})'.format(token, invite_code))
+            self.write_joined_token(token, invite_code)
+            self.joined_count += 1
+           
+        elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
+            Log.err('Invalid Token ({})'.format(token))
+            self.not_joined_count += 1
+            return False, None
+        elif response.status_code == 403 and r_json['message'] == "You need to verify your account in order to perform this action.":
+            Log.err('Flagged Token ({})'.format(token))
+            self.not_joined_count += 1
+            return False, None
+        elif response.status_code == 400 and r_json['captcha_key'] == ['You need to update your app to join this server.']:
+            Log.err('\033[0;31m Hcaptcha ({})'.format(token))
+            self.not_joined_count += 1
+            return False, None
+        elif r_json['message'] == "404: Not Found":
+            Log.err('Unknown invite ({})'.format(invite_code))
+            self.not_joined_count += 1
+            return False, None
+        else:
+            Log.err('Invalid response ({})'.format(r_json))
+            self.not_joined_count += 1
+            return False, None
+
     async def process_single_token(self, token: str, guild_invite: str):
         try:
             selected_proxy = self.filemanager.get_random_proxy()
             user_id = int(await self.get_userid(token=token)) # still needs to be made
-            joined = await join_guild(userid=user_id, token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | is user_id even required?
+            joined = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             guild_id = int(await self.fetch_guild_id(token=token, inv=guild_invite, proxy_=selected_proxy)) # this code is not done
             if joined:
                 boosted = await boost_server(token, guild_id)
