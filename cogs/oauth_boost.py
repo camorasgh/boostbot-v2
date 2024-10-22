@@ -235,8 +235,8 @@ class BoostingModal(disnake.ui.Modal):
                 placeholder="Enter the guild Invite",
                 custom_id="boosting.guild_invite",
                 style=disnake.TextInputStyle.short,
-                min_length=18,
-                max_length=19,
+                min_length=3,
+                max_length=30,
             ),
             disnake.ui.TextInput(
                 label="Amount",
