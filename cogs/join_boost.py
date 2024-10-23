@@ -343,6 +343,14 @@ class Tokenmanager:
             return None, None
 
     async def boost_server(self, token: str, guild_id: str, session, boost_ids) -> bool:
+        """
+        Boosts the server via guild id
+        :param token: account token
+        :param guild_id: id of the server to boost
+        :param session: session from get_boost_data
+        :param boost_ids: boost ids as a list/tuple/etc.
+        :return:
+        """
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
             if not boost_ids:
@@ -375,8 +383,8 @@ class Tokenmanager:
     async def process_single_token(self, token: str, guild_invite: str):
         """
         Starts single token process from getting a proxy to boosting the server
-        :param token:
-        :param guild_invite:
+        :param token: account token
+        :param guild_invite: invite to the server
         :return:
         """
         try:
