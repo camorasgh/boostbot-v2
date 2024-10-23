@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 import base64
 import random
@@ -106,6 +107,11 @@ class Filemanager:
 
     @staticmethod
     async def format_proxy(proxy: str) -> str:
+        """
+        Formats provided proxy
+        :param proxy:
+        :return: formatted proxy
+        """
         if '@' in proxy:
             auth, ip_port = proxy.split('@')
             return f"{auth}@{ip_port}"
@@ -304,14 +310,83 @@ class Tokenmanager:
             self.not_joined_count += 1
             return False, None
 
+    async def get_boost_data(self, token: str, selected_proxy):
+        """
+        Retrieves the boost ids and session
+        :param token:
+        :param selected_proxy:
+        :return:
+        """
+        url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
+        try:
+            async with aiohttp.ClientSession() as session:
+                session.proxies = selected_proxy
+                headers = {"Authorization": token}
+                async with session.get(url=url, headers=headers) as r:
+                    if r.status == 200:
+                        data = await r.json()
+                        if len(data) > 0:
+                            boost_ids = [boost['id'] for boost in data]
+                            return boost_ids, session
+                    elif r.status == 401:
+                        self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
+                    elif r.status == 403:
+                        self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Flagged Token ({token[:10]}...)')
+                    else:
+                        self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
+                return None, None
+        except aiohttp.ClientError as e:
+            self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
+            return None, None
+        except Exception as e:
+            self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error retrieving boost data: {str(e)}")
+            return None, None
+
+    async def boost_server(self, token: str, guild_id: str, session, boost_ids) -> bool:
+        url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
+        try:
+            if not boost_ids:
+                self.bot.logger.error(f"`ERR_NO_BOOSTS` No boost IDs available for token: {token[:10]}...")
+                return False
+
+            boosted = False
+            for boost_id in boost_ids:
+                payload = {"user_premium_guild_subscription_slot_ids": [int(boost_id)]}
+                headers = {"Authorization": token}
+                async with session.put(url=url, headers=headers, json=payload) as r:
+                    if r.status == 201:
+                        self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
+                        boosted = True
+                        break
+                    else:
+                        response_json = await r.json()
+                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
+            return boosted
+
+        except aiohttp.ClientError as e:
+            self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
+            return False
+
+        except Exception as e:
+            self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error boosting with token {token[:10]}: {str(e)}")
+            return False
+
+
     async def process_single_token(self, token: str, guild_invite: str):
+        """
+        Starts single token process from getting a proxy to boosting the server
+        :param token:
+        :param guild_invite:
+        :return:
+        """
         try:
             selected_proxy = await self.filemanager.get_random_proxy()
             user_id = str(await self.get_userid(token=token)) # still needs to be made
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
-                #boosted = await boost_server(token, guild_id)
-                #self.boost_results[user_id] = True
+                boost_ids, session = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
+                boosted = await self.boost_server(token=token, guild_id=guild_id, session=session, boost_ids=boost_ids)
+                self.boost_results[user_id] = False if boosted == False else True
                 pass
             else:
                 self.boost_results[user_id] = False
