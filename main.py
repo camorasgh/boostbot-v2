@@ -80,26 +80,29 @@ class Cogloader:
         return results
 
     def load(self):
-        if os.path.exists("./cogs"):
-            for file in os.listdir("./cogs"):
-                if file.endswith(".py"):
-                    if f"cogs.{file[:-3]}" in self.bot.extensions:
-                        pass
-                    else:
-                        try:
-                            self.bot.load_extension(f"cogs.{file[:-3]}")
-                            self.loaded += 1
-                        except commands.ExtensionError as e:
-                            if "already" in str(e):
-                                pass
-                            else:
-                                self.not_loaded += 1
-                                self.errors.append(e)
-                        except Exception as e:
-                            self.not_loaded += 1
-                            self.errors.append(e)
-        else:
+        if not os.path.exists("./cogs"):
             self.errors.append("./cogs folder does not exist.")
+            return
+
+        for file in os.listdir("./cogs"):
+            if not file.endswith(".py"):
+                continue
+
+            extension = f"cogs.{file[:-3]}"
+            if extension in self.bot.extensions:
+                continue
+
+            try:
+                self.bot.load_extension(extension)
+                self.loaded += 1
+            except commands.ExtensionError as e:
+                if "already" not in str(e):
+                    self.not_loaded += 1
+                    self.errors.append(e)
+            except Exception as e:
+                self.not_loaded += 1
+                self.errors.append(e)
+
 
 class Banner:
     
