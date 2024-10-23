@@ -13,8 +13,9 @@ from typing import Dict, Any
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 
-DEFAULT_CONTEXTS = [InteractionContextTypes.private_channel, InteractionContextTypes.guild]
-DEFAULT_INTEGRATION_TYPES = [ApplicationIntegrationTypes.guild, ApplicationIntegrationTypes.user]
+# Constants
+DEFAULT_CONTEXTS = InteractionContextTypes.all()
+DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 
 
 class Log:
@@ -372,8 +373,8 @@ class JoinBoost(commands.Cog):
     @commands.slash_command(
         name="join",
         description="Join group handler",
-        #contexts=DEFAULT_CONTEXTS,
-        #integration_types=DEFAULT_INTEGRATION_TYPES
+        contexts=DEFAULT_CONTEXTS,
+        integration_types=DEFAULT_INTEGRATION_TYPES
     )
     async def join_decorator(self, inter: ApplicationCommandInteraction):
         pass
