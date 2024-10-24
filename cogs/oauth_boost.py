@@ -58,7 +58,7 @@ class TokenManager:
 
     async def load_tokens(self, amount: int) -> Optional[str]:
         try:
-            with open("./input/tokens.txt", "r") as file:
+            with open("input/tokens.txt", "r") as file:
                 all_tokens = [line.strip() for line in file if line.strip()]
 
             available_tokens = len(all_tokens) * 2
@@ -67,7 +67,7 @@ class TokenManager:
             tokens_to_process = all_tokens[:amount]
             remaining_tokens = all_tokens[amount:]
 
-            with open("./input/tokens.txt", "w") as file:
+            with open("input/tokens.txt", "w") as file:
                 for token in remaining_tokens:
                     file.write(f"{token}\n")
 
@@ -80,7 +80,7 @@ class TokenManager:
 
     async def load_proxies(self) -> Optional[str]:
         try:
-            with open("./input/proxies.txt", "r") as file:
+            with open("input/proxies.txt", "r") as file:
                 self.proxies = [self.format_proxy(line.strip()) for line in file if line.strip()]
             self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
             return None
@@ -102,8 +102,8 @@ class TokenManager:
     def get_proxy(self) -> Optional[Dict[str, str]]:
         available_proxies = [p for p in self.proxies if p not in self.failed_proxies]
         if not available_proxies:
-            self.bot.logger.error("`ERR_NO_PROXIES` No available proxies.")
-            return None
+            self.bot.logger.info("Not enough proxies available. Using no proxy.")
+            return {"http": None, "https": None}
         proxy = random.choice(available_proxies)
         return {"http": proxy, "https": proxy}
 
@@ -137,26 +137,32 @@ class TokenManager:
     async def _put_boost(self, token: str, guild_id: str) -> Optional[str]:
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
-            boost_ids, session = await self.__get_boost_data(token=token)
+            boost_ids = await self.__get_boost_data(token=token)
             if not boost_ids:
                 self.counter.increment_failed_boosts(token)
                 return f"No boost IDs available for token: {token[:10]}..."
 
             boosted = False
+            errors = []
             for boost_id in boost_ids:
                 payload = {"user_premium_guild_subscription_slot_ids": [int(boost_id)]}
                 headers = {"Authorization": token}
-                async with session.put(url=url, headers=headers, json=payload) as r:
-                    if r.status == 201:
-                        self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
-                        self.counter.increment_boosts(token)
-                        boosted = True
-                        break
-                    else:
-                        response_json = await r.json()
-                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
-                        self.counter.increment_failed_boosts(token)
-                        return f"Failed to boost token: {token[:10]}, Response: {response_json}"
+                async with aiohttp.ClientSession() as session: 
+                    proxies = self.get_proxy()
+                    session.proxies = proxies
+                    async with session.put(url=url, headers=headers, json=payload) as r:
+                        if r.status == 201:
+                            self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
+                            self.counter.increment_boosts(token)
+                            boosted = True
+                            
+                        else:
+                            response_json = await r.json()
+                            self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
+                            self.counter.increment_failed_boosts(token)
+                            errors.append(f"Failed to boost token: {token[:10]}, Response: {response_json}")
+            if errors:
+                return "\n".join(errors)
 
             if not boosted:
                 self.counter.increment_failed_boosts(token)
@@ -175,14 +181,14 @@ class TokenManager:
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
         try:
             async with aiohttp.ClientSession() as session:
-                session.proxies = self.get_proxy()
+                session.proxies = self.get_proxy() 
                 headers = {"Authorization": token}
                 async with session.get(url=url, headers=headers) as r:
                     if r.status == 200:
                         data = await r.json()
                         if len(data) > 0:
                             boost_ids = [boost['id'] for boost in data]
-                            return boost_ids, session
+                            return boost_ids
                     else:
                         self.bot.logger.error(f'Unexpected status code {r.status} for token {token[:10]}...')
                 return None, None
@@ -367,9 +373,12 @@ class BoostingModal(disnake.ui.Modal):
         await inter.response.defer(ephemeral=True)
         try:
             guild_id = inter.text_values['boosting.guild_id']
-            guild = self.bot.get_guild(int(guild_id))
-            if not guild:
-                await inter.followup.send(f"`ERR_BOT_NOT_IN_GUILD` Bot is not added to guild: {guild_id}", ephemeral=True)
+            # Check if bot is in the guild
+            for guild in self.bot.guilds:
+                if guild.id == int(guild_id):
+                    break
+            else:
+                await inter.followup.send("`ERR_NOT_IN_GUILD` Bot is not in the specified guild.", ephemeral=True)
                 return
             amount = int(inter.text_values['boosting.amount'])
             if amount % 2 != 0:
