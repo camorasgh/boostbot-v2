@@ -9,21 +9,68 @@ import os
 import sys
 import ctypes
 
+import os
+import shutil  # For getting terminal size
+import ctypes
+from colorama import Fore, Style
+import re
+
 class Logger:
     @staticmethod
-    def log(message: str, status: str, status_color: Any) -> None: # i hate pycharm errors
-        """
-        A helper method to format and print log messages.
+    def strip_ansi(text: str) -> str:
+        """Remove ANSI escape codes from text."""
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
 
-        :param message: The message to log.
-        :param status: The status label (e.g., 'SUCCESS', 'ERROR').
-        :param status_color: The color to use for the status.
+    @staticmethod
+    def get_true_length(text: str) -> str:
+        """Get the true visual length of text by removing ANSI codes."""
+        return len(Logger.strip_ansi(text))
+
+    @staticmethod
+    def center_with_ansi(text: str, width: int) -> str:
+        """Center text while preserving ANSI color codes."""
+        true_length = Logger.get_true_length(text)
+        padding = max(0, width - true_length)
+        left_padding = ' ' * (padding // 2)
+        return f"{left_padding}{text}"  # Remove right padding to prevent overflow
+
+    @staticmethod
+    def log(message: str, status: str, status_color: Any) -> None:
         """
-        current_time = Utils.format_time()
-        formatted_time = f"{Fore.LIGHTBLACK_EX}[{Fore.LIGHTCYAN_EX}{current_time}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        formatted_status = f"{Fore.LIGHTBLACK_EX}[{status_color}{status}{Fore.LIGHTBLACK_EX}]{Fore.RESET}"
-        full_msg = f"{formatted_time} {formatted_status} {Fore.LIGHTBLACK_EX}[{Fore.LIGHTMAGENTA_EX}{__name__}{Fore.LIGHTBLACK_EX}] {message}"
-        print(full_msg)
+        Format and print log messages with proper gradients and centering.
+        """
+        current_time = datetime.datetime.now().strftime("%m/%d - %H:%M:%S")
+        terminal_width = shutil.get_terminal_size().columns
+        
+        gradient_colors = [53, 55, 56, 57, 93, 129, 165, 201]
+
+        formatted_time = Logger.apply_gradient(f"[{current_time}]", gradient_colors)
+        
+        # Create status with brackets
+        brackets = Logger.apply_gradient("[ ]", gradient_colors)
+        brackets = brackets.split(" ")
+        formatted_status = f"{brackets[0]}{status_color}{status}{Fore.RESET}{brackets[1]}"
+
+        gradient_message = Logger.apply_gradient(message, [93])
+
+        # Combine all parts
+        full_msg = f"{formatted_time} {formatted_status} {gradient_message}"
+        
+        # Handle multi-line messages
+        lines = full_msg.split('\n')
+        for i, line in enumerate(lines):
+            if i == len(lines) - 1:  # Last line
+                centered_msg = Logger.center_with_ansi(line.rstrip(), terminal_width)
+                print(centered_msg + Style.RESET_ALL)
+            else:
+                centered_msg = Logger.center_with_ansi(line.rstrip(), terminal_width)
+                print(centered_msg + Style.RESET_ALL + '\n')
+
+    @staticmethod
+    def apply_gradient(text: str, colors: list) -> str:
+        """Applies a gradient to the given text using the specified colors."""
+        return ''.join(f"\033[38;5;{colors[i % len(colors)]}m{char}" for i, char in enumerate(text))
 
     @staticmethod
     def success(message: str) -> None:
@@ -40,6 +87,14 @@ class Logger:
     @staticmethod
     def custom(status: str, message: str, status_color: Any = Fore.MAGENTA) -> None:
         Logger.log(message, status, status_color)
+
+    @staticmethod
+    def gradient(text: str) -> str:
+        """Apply default gradient to a text."""
+        gradient_colors = [53, 55, 56, 57, 93, 129, 165, 201]
+        return Logger.apply_gradient(text, gradient_colors)
+
+
             
 class Utils:
     @staticmethod
@@ -192,10 +247,16 @@ bot = Bot()
 async def on_ready_listener():
     cogs = Cogloader(bot)
     cogs.load()
+    print()
+
     Logger.success(f"Bot is online as: {bot.user.name}")
-    Logger.info(f"Loaded {cogs.get_results()}")
-    Logger.info(f"Owner(s): {', '.join(str(owner) for owner in bot.owner_ids)}")
-    Logger.info(f"Commands: {len(bot.all_slash_commands)}")
+    cogs_results = cogs.get_results()
+    Logger.info(f"Loaded {cogs_results['loaded']} cogs")
+    if cogs_results.get('not_loaded'):
+        Logger.error(f"Failed to load {cogs_results['not_loaded']} cogs")
+        for error in cogs_results['errors']:
+            Logger.error(error)
+    Logger.info(f"Registered Commands: {len(bot.all_slash_commands)}")
 
 @bot.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
