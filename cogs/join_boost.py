@@ -8,7 +8,6 @@ import string
 import tls_client
 import zipfile
 
-from colorama import Fore, Style
 from datetime import datetime
 
 from disnake import ModalInteraction, ui, TextInputStyle

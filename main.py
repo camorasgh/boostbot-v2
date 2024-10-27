@@ -1,19 +1,17 @@
+import colorama
+import ctypes
+import datetime
 import disnake
+import json
+import os
+import re
+import shutil  # For getting terminal size
+import sys
+
+from colorama import Fore, Style
 from disnake.ext import commands
 from typing import Dict, Any
-import json
-import colorama
-from colorama import Fore
-import datetime
-import os
-import sys
-import ctypes
 
-import os
-import shutil  # For getting terminal size
-import ctypes
-from colorama import Fore, Style
-import re
 
 class Logger:
     @staticmethod
