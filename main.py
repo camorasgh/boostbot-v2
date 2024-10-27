@@ -1,4 +1,3 @@
-import colorama
 import ctypes
 import datetime
 import disnake
@@ -8,7 +7,6 @@ import re
 import shutil  # For getting terminal size
 import sys
 
-from colorama import Fore, Style
 from disnake.ext import commands
 from typing import Dict, Any
 
@@ -271,7 +269,6 @@ if __name__ == "__main__":
     
     Banner = Banner()
     Banner.print_banner()
-    colorama.init(autoreset=True)
     try:
         bot.run(bot.config.get("token"))
     except disnake.errors.LoginFailure:
