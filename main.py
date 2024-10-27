@@ -23,7 +23,7 @@ class Logger:
         return ansi_escape.sub('', text)
 
     @staticmethod
-    def get_true_length(text: str) -> str:
+    def get_true_length(text: str) -> int:
         """Get the true visual length of text by removing ANSI codes."""
         return len(Logger.strip_ansi(text))
 
