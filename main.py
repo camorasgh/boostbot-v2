@@ -1,3 +1,4 @@
+import colorama
 import ctypes
 import datetime
 import disnake
@@ -7,6 +8,7 @@ import re
 import shutil  # For getting terminal size
 import sys
 
+from colorama import Fore, Style
 from disnake.ext import commands
 from typing import Dict, Any
 
@@ -271,6 +273,7 @@ if __name__ == "__main__":
     Banner.print_banner()
     try:
         bot.run(bot.config.get("token"))
+        colorama.init(autoreset=True)
     except disnake.errors.LoginFailure:
         Logger.error("Improper token has been passed.")
         raise Exception("Improper token has been passed")
