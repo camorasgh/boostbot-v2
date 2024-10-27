@@ -1,12 +1,15 @@
 import aiohttp
 import asyncio
 import base64
+import os
 import random
 import re
 import string
 import tls_client
+import zipfile
 
 from colorama import Fore, Style
+from datetime import datetime
 
 from disnake import ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
@@ -19,43 +22,13 @@ DEFAULT_CONTEXTS = InteractionContextTypes.all()
 DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 
 
-class Log:
-    """
-    Log class for custom logging functions
-    """
-    @staticmethod
-    def err(msg):
-        """
-        Log an error message
-        
-        Args:
-        msg [str]: The message to log
-        """
-        print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTRED_EX}-{Fore.RESET}] {msg}')
-
-    @staticmethod
-    def succ(msg):
-        """
-        Log a success message
-        
-        Args:
-        msg [str]: The message to log
-        """
-        print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}+{Fore.RESET}] {msg}')
-
-    @staticmethod
-    def console(msg):
-        """
-        Log a console message
-        
-        Args:
-        msg [str]: The message to log
-        """
-        print(f'{Fore.RESET}{Style.BRIGHT}[{Fore.LIGHTMAGENTA_EX}-{Fore.RESET}] {msg}')
-
 class Filemanager:
     def __init__(self):
         self.proxies = []
+        self.session_dir = f"output/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/"
+        os.makedirs(self.session_dir, exist_ok=True)
+        self.success_file = os.path.join(self.session_dir, "JOINS_SUCCESS.txt")
+        self.fail_file = os.path.join(self.session_dir, "JOIN_FAILS.txt")
 
     @staticmethod
     async def load_tokens(amount):
@@ -99,11 +72,11 @@ class Filemanager:
         try:
             with open("./input/proxies.txt", "r") as file:
                 self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
-            Log.console(f"Loaded {len(self.proxies)} proxies")
+            self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
         except FileNotFoundError:
-            Log.err("proxies.txt file not found.")
+            self.bot.logger.error("proxies.txt file not found.")
         except Exception as e:
-            Log.err(f"Error loading proxies: {str(e)}")
+            self.bot.logger.error(f"Error loading proxies: {str(e)}")
 
     @staticmethod
     async def format_proxy(proxy: str) -> str:
@@ -123,6 +96,35 @@ class Filemanager:
         if self.proxies:
             return random.choice(self.proxies)
         return None
+
+## ATTENTION NEXT 2 FUNCTIONS MAY CAUSE IMMEDIATE DEATH ONCE SEEN
+    def write_joined_token(self, token, invite_code, success=True):
+        """
+        Writes the joined token to a success or fail file depending on join outcome.
+
+        Args:
+            token (str): Token used for joining.
+            invite_code (str): Invite code for the guild.
+            success (bool): Whether the join was successful.
+        """
+        file_path = self.success_file if success else self.fail_file
+        with open(file_path, 'a') as f:
+            f.write(f"{token} joined {invite_code}\n")
+
+    def finalize_logs(self):
+        """
+        Zips the session's logs and removes the individual files to save space.
+        """
+        zip_file = f"{self.session_dir.rstrip('/')}.zip"
+        with zipfile.ZipFile(zip_file, 'w') as zipf:
+            for root, _, files in os.walk(self.session_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    zipf.write(file_path, arcname=os.path.relpath(file_path, self.session_dir))
+
+        for file in os.listdir(self.session_dir):
+            os.remove(os.path.join(self.session_dir, file))
+        os.rmdir(self.session_dir)
 
 class Tokenmanager:
     def __init__(self, bot):
@@ -212,24 +214,24 @@ class Tokenmanager:
                     return boost_ids # yippeee
                 
             elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
-                Log.err('Invalid Token ({})'.format(token))
+                self.bot.logger.error('Invalid Token ({})'.format(token))
 
             elif response.status_code == 403 and r_json['message'] == "You need to verify your account in order to perform this action.":
-                Log.err('Flagged Token ({})'.format(token))
+                self.bot.logger.error('Flagged Token ({})'.format(token))
 
             elif response.status_code == 400 and r_json['captcha_key'] == ['You need to update your app to join this server.']:
-                Log.err('\033[0;31m Hcaptcha ({})'.format(token))
+                self.bot.logger.error('\033[0;31m Hcaptcha ({})'.format(token))
 
             elif r_json['message'] == "404: Not Found":
-                Log.err("No Nitro") # D:
+                self.bot.logger.error("No Nitro") # D:
 
             else:
-                Log.err('Invalid response ({})'.format(r_json))
+                self.bot.logger.error('Invalid response ({})'.format(r_json))
 
             return None
         
         except Exception as e:
-            Log.err('Unknown error occurred in boosting guild: {}'.format(e))
+            self.bot.logger.error('Unknown error occurred in boosting guild: {}'.format(e))
             return None
 
     async def get_userid(self, token): # "may be static" ~ pycharm (woah)
@@ -283,30 +285,30 @@ class Tokenmanager:
 
         r_json = response.json()
         if response.status_code == 200:
-            Log.succ('Joined! {} ({})'.format(token, invite_code))
-            self.write_joined_token(token, invite_code) # Here error
+            self.bot.logger.success('Joined! {} ({})'.format(token, invite_code))
+            Filemanager.write_joined_token(token, invite_code, True) # Here error
             self.joined_count += 1
             guild_id = r_json.get("guild", {}).get("id")
             return True, guild_id
            
         elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
-            Log.err('Invalid Token ({})'.format(token))
+            self.bot.logger.error('Invalid Token ({})'.format(token))
             self.not_joined_count += 1
             return False, None
         elif response.status_code == 403 and r_json['message'] == "You need to verify your account in order to perform this action.":
-            Log.err('Flagged Token ({})'.format(token))
+            self.bot.logger.error('Flagged Token ({})'.format(token))
             self.not_joined_count += 1
             return False, None
         elif response.status_code == 400 and r_json['captcha_key'] == ['You need to update your app to join this server.']:
-            Log.err('\033[0;31m Hcaptcha ({})'.format(token))
+            self.bot.logger.error('\033[0;31m Hcaptcha ({})'.format(token))
             self.not_joined_count += 1
             return False, None
         elif r_json['message'] == "404: Not Found":
-            Log.err('Unknown invite ({})'.format(invite_code))
+            self.bot.logger.error('Unknown invite ({})'.format(invite_code))
             self.not_joined_count += 1
             return False, None
         else:
-            Log.err('Invalid response ({})'.format(r_json))
+            self.bot.logger.error('Invalid response ({})'.format(r_json))
             self.not_joined_count += 1
             return False, None
 
