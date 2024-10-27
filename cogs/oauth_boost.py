@@ -5,7 +5,7 @@ import disnake
 import os
 import random
 import threading
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake.ext import commands
@@ -16,7 +16,9 @@ DEFAULT_CONTEXTS = InteractionContextTypes.all()
 DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 
 class JoinBoostCounter:
+    """Handles the counting of successful and failed join and boost attempts."""
     def __init__(self):
+        """Initializes counters and lists for tracking joins and boosts."""
         self.JOINS = 0
         self.FAILED_JOINS = 0
         self.BOOSTS = 0
@@ -30,25 +32,36 @@ class JoinBoostCounter:
             "boost_failed": []
         }
 
-    def increment_joins(self, token: str):
+    def increment_joins(self, token: str) -> None:
+        """Increments the count for successful joins and logs the token."""
         self.JOINS += 1
         self.success_tokens["joined"].append(token)
 
-    def increment_failed_joins(self, token: str):
+    def increment_failed_joins(self, token: str) -> None:
+        """Increments the count for failed joins and logs the token."""
         self.FAILED_JOINS += 1
         self.failed_tokens["join_failed"].append(token)
 
-    def increment_boosts(self, token: str):
+    def increment_boosts(self, token: str) -> None:
+        """Increments the count for successful boosts and logs the token."""
         self.BOOSTS += 1
         self.success_tokens["boosted"].append(token)
 
-    def increment_failed_boosts(self, token: str):
+    def increment_failed_boosts(self, token: str) -> None:
+        """Increments the count for failed boosts and logs the token."""
         self.FAILED_BOOSTS += 1
         self.failed_tokens["boost_failed"].append(token)
 
 
 class TokenManager:
-    def __init__(self, bot):
+    """Manages tokens and proxies, handles joins, boosts, and authorization requests."""
+    def __init__(self, bot) -> None:
+        """
+        Initializes TokenManager with bot instance and sets up token and proxy lists.
+
+        Args:
+            bot: The Discord bot instance used for interactions and logging.
+        """
         self.bot = bot
         self.tokens: List[str] = []
         self.proxies: List[str] = []
@@ -57,6 +70,15 @@ class TokenManager:
         self.authorized_users: Dict[str, Dict[str, str]] = {}
 
     async def load_tokens(self, amount: int) -> Optional[str]:
+        """
+        Loads a specified amount of tokens from a file.
+
+        Args:
+            amount: The number of tokens to load.
+
+        Returns:
+            An error message if loading fails, or None if successful.
+        """
         try:
             with open("input/tokens.txt", "r") as file:
                 all_tokens = [line.strip() for line in file if line.strip()]
@@ -79,6 +101,12 @@ class TokenManager:
             return f"`ERR_UNKNOWN_EXCEPTION` Error loading tokens: {str(e)}"
 
     async def load_proxies(self) -> Optional[str]:
+        """
+        Loads proxies from a file and formats them.
+
+        Returns:
+            An error message if loading fails, or None if successful.
+        """
         try:
             with open("input/proxies.txt", "r") as file:
                 self.proxies = [self.format_proxy(line.strip()) for line in file if line.strip()]
@@ -91,6 +119,15 @@ class TokenManager:
 
     @staticmethod
     def format_proxy(proxy: str) -> str:
+        """
+        Formats a proxy string with or without authentication.
+
+        Args:
+            proxy: The raw proxy string.
+
+        Returns:
+            A formatted proxy URL.
+        """
         try:
             if '@' in proxy:
                 auth, ip_port = proxy.split('@')
@@ -100,6 +137,12 @@ class TokenManager:
             return f"`ERR_PROXY_FORMATTING` Error formatting proxy: {str(e)}"
 
     def get_proxy(self) -> Optional[Dict[str, str]]:
+        """
+        Retrieves a random available proxy.
+
+        Returns:
+            A dictionary with HTTP and HTTPS proxy URLs or None if no proxies are available.
+        """
         available_proxies = [p for p in self.proxies if p not in self.failed_proxies]
         if not available_proxies:
             self.bot.logger.info("Not enough proxies available. Using no proxy.")
@@ -108,6 +151,18 @@ class TokenManager:
         return {"http": proxy, "https": proxy}
 
     async def join_guild(self, user_id: str, access_token: str, guild_id: str, token: str) -> Optional[str]:
+        """
+        Attempts to add a user to a specified guild.
+
+        Args:
+            user_id: The user's Discord ID.
+            access_token: Access token to authorize the join.
+            guild_id: The guild ID to join.
+            token: The user’s token.
+
+        Returns:
+            An error message if the join fails, or None if successful.
+        """
         try:
             join_url = f"https://discord.com/api/guilds/{guild_id}/members/{user_id}"
             headers = {
@@ -135,6 +190,16 @@ class TokenManager:
             return f"Error joining user: {user_id}"
 
     async def _put_boost(self, token: str, guild_id: str) -> Optional[str]:
+        """
+        Attempts to boost a guild with the provided token.
+
+        Args:
+            token: The token used for boosting.
+            guild_id: The guild ID to boost.
+
+        Returns:
+            An error message if the boost fails, or None if successful.
+        """
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
             boost_ids = await self.__get_boost_data(token=token)
@@ -177,7 +242,16 @@ class TokenManager:
             self.counter.increment_failed_boosts(token)
             return f"Error boosting token: {token[:10]}"
 
-    async def __get_boost_data(self, token: str):
+    async def __get_boost_data(self, token: str) -> Optional[List[str]]:
+        """
+        Retrieves boost slot IDs for the given token.
+
+        Args:
+            token: The token to check for available boost slots.
+
+        Returns:
+            A list of boost slot IDs or None if none are available.
+        """
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
         try:
             async with aiohttp.ClientSession() as session:
@@ -200,6 +274,16 @@ class TokenManager:
             return None, None
 
     async def process_single_token(self, token: str, guild_id: str) -> List[str]:
+        """
+        Processes a single token for joining and boosting a guild.
+
+        Args:
+            token: The token to process.
+            guild_id: The guild ID to boost.
+
+        Returns:
+            A list of error messages encountered during processing.
+        """
         errors = []
         try:
             user_data = await self.authorize_single_token(token, guild_id)
@@ -222,6 +306,16 @@ class TokenManager:
         return errors
 
     async def process_tokens(self, guild_id: str, amount: int) -> List[str]:
+        """
+        Processes multiple tokens to join and boost a guild.
+
+        Args:
+            guild_id: The ID of the guild to join and boost.
+            amount: The number of boosts required.
+
+        Returns:
+            A list of error messages encountered during processing.
+        """
         try:
             load_tokens_error = await self.load_tokens(amount)
             if load_tokens_error:
@@ -237,6 +331,16 @@ class TokenManager:
             return [f"Error processing tokens: {str(e)}"]
 
     async def authorize_single_token(self, token: str, guild_id: str) -> Optional[Dict[str, str]]:
+        """
+        Authorizes a token for use with Discord's OAuth.
+
+        Args:
+            token: The token to authorize.
+            guild_id: The guild ID for the authorization context.
+
+        Returns:
+            User data including access token if successful, or None.
+        """
         try:
             login_url = f"https://discord.com/api/v9/oauth2/authorize?client_id={self.bot.config['client_id']}&response_type=code&redirect_uri={self.bot.config['redirect_uri']}&scope=identify%20guilds.join"
             async with aiohttp.ClientSession() as session:
@@ -289,7 +393,17 @@ class TokenManager:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error authorizing token {token[:10]}: {str(e)}")
             return None
 
-    async def _do_exchange(self, code: str, session: aiohttp.ClientSession):
+    async def _do_exchange(self, code: str, session: aiohttp.ClientSession) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Exchanges an authorization code for an access token and refresh token.
+
+        Args:
+            code: The authorization code received from Discord.
+            session: The active aiohttp session.
+
+        Returns:
+            A tuple containing the access and refresh tokens or None.
+        """
         oauth_url = "https://discord.com/api/v10/oauth2/token"
         payload = {
             "client_id": self.bot.config['client_id'],
@@ -311,7 +425,17 @@ class TokenManager:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error exchanging code for token: {str(e)}")
             return None, None
 
-    async def get_user_data(self, access_token: str, session: aiohttp.ClientSession):
+    async def get_user_data(self, access_token: str, session: aiohttp.ClientSession) -> Optional[Dict[str, str]]:
+        """
+        Retrieves user data using the access token.
+
+        Args:
+            access_token: The access token to authorize the request.
+            session: The active aiohttp session.
+
+        Returns:
+            A dictionary of user data if successful, or None.
+        """
         users_url = "https://discord.com/api/v10/users/@me"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
@@ -324,7 +448,14 @@ class TokenManager:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error getting user data: {str(e)}")
             return None
 
-    def save_results(self, guild_id: str, amount: int):
+    def save_results(self, guild_id: str, amount: int) -> None:
+        """
+        Saves results of the join and boost processes to output files.
+
+        Args:
+            guild_id: The guild ID for which results are saved.
+            amount: The number of boosts processed.
+        """
         timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         folder_name = f"./output/{timestamp}-{guild_id}-({amount}x)"
         os.makedirs(folder_name, exist_ok=True)
@@ -347,7 +478,14 @@ class TokenManager:
 
 
 class BoostingModal(disnake.ui.Modal):
+    """Displays a modal for user input on guild boosting details."""
     def __init__(self, bot) -> None:
+        """
+        Initializes the modal with the required input fields.
+
+        Args:
+            bot: The bot instance for interacting with Discord.
+        """
         self.bot: commands.InteractionBot = bot
         components = [
             disnake.ui.TextInput(
@@ -370,6 +508,12 @@ class BoostingModal(disnake.ui.Modal):
         super().__init__(title="OAUTH Booster", components=components)
 
     async def callback(self, inter: disnake.ModalInteraction) -> None:
+        """
+        Handles the modal submission by initiating the boosting process.
+
+        Args:
+            inter: The interaction object from the modal submission.
+        """
         await inter.response.defer(ephemeral=True)
         try:
             guild_id = inter.text_values['boosting.guild_id']
@@ -411,7 +555,14 @@ class BoostingModal(disnake.ui.Modal):
 
 
 class OAuthBoost(commands.Cog):
+    """Cog for handling OAuth-based guild boosting commands."""
     def __init__(self, bot: commands.Bot):
+        """
+        Initializes the cog with the bot instance.
+
+        Args:
+            bot: The bot instance for interaction with Discord.
+        """
         self.bot = bot
 
     @commands.slash_command(
@@ -420,11 +571,18 @@ class OAuthBoost(commands.Cog):
         contexts=DEFAULT_CONTEXTS,
         integration_types=DEFAULT_INTEGRATION_TYPES
     )
-    async def oauth_decorator(self, inter: disnake.ApplicationCommandInteraction):
+    async def oauth_decorator(self, inter: disnake.ApplicationCommandInteraction) -> None:
+        """Slash command decorator for grouping OAuth-related commands."""
         pass
 
     @oauth_decorator.sub_command(name="boost", description="Boost a guild using OAUTH")
-    async def oauth_boost_guild(self, inter: disnake.ApplicationCommandInteraction):
+    async def oauth_boost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
+        """
+        Slash command for initiating the guild boosting modal.
+
+        Args:
+            inter: The interaction object from the command.
+        """
         try:
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)
