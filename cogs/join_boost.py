@@ -5,6 +5,7 @@ import os
 import random
 import re
 import string
+import threading
 import tls_client
 import zipfile
 
@@ -403,10 +404,24 @@ class Tokenmanager:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
 
-    async def process_tokens(self, guild_invite: str, amount: int):
-        tokens_to_process = await Filemanager.load_tokens(amount)
-        tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
-        await asyncio.gather(*tasks) 
+    def process_tokens(self, guild_invite: str, amount: int):
+        """
+        idk if this works, old code:
+        async def process_tokens(self, guild_invite: str, amount: int):
+            tokens_to_process = await Filemanager.load_tokens(amount)
+            tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
+            await asyncio.gather(*tasks) 
+        """
+        tokens_to_process = asyncio.run(Filemanager.load_tokens(amount))
+        threads = []
+    
+        for token in tokens_to_process:
+            thread = threading.Thread(target=lambda: asyncio.run(self.process_single_token(token, guild_invite)))
+            threads.append(thread)
+            thread.start()
+        
+        for thread in threads:
+            thread.join()
 
 
 class BoostingModal(ui.Modal):
