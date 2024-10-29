@@ -124,12 +124,14 @@ class Cogloader:
 
     def get_results(self) -> Dict:
         results = {
-            "loaded":self.loaded,
+            "loaded": self.loaded,
             "not_loaded": self.not_loaded,
+            "errors": self.errors
 
         }
         if len(self.errors) > 0:
             results['errors'] = ', '.join(str(error) for error in self.errors)
+
         return results
 
     def load(self):
