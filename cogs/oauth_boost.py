@@ -2,6 +2,7 @@ import aiohttp
 import asyncio
 import datetime
 import disnake
+import json
 import os
 import random
 import threading
@@ -68,6 +69,15 @@ class TokenManager:
         self.failed_proxies: set = set()
         self.counter = JoinBoostCounter()
         self.authorized_users: Dict[str, Dict[str, str]] = {}
+
+    @staticmethod
+    async def load_config() -> Dict:
+        """
+        Loads the config.json as a dict
+        """
+        with open('config.json', 'r') as file:
+            config = json.load(file)
+            return config
 
     async def load_tokens(self, amount: int) -> Optional[str]:
         """
@@ -583,6 +593,11 @@ class OAuthBoost(commands.Cog):
         Args:
             inter: The interaction object from the command.
         """
+        config = TokenManager.load_config()
+        owner_ids = config[owner_ids]
+        if inter.author.id not in owner_ids:
+            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+
         try:
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)

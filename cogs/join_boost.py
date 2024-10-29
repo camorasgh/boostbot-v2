@@ -1,6 +1,7 @@
 import aiohttp
 import asyncio
 import base64
+import json
 import os
 import random
 import re
@@ -96,6 +97,16 @@ class Filemanager:
         if self.proxies:
             return random.choice(self.proxies)
         return None
+
+    @staticmethod
+    async def load_config() -> Dict:
+        """
+        Loads the config.json as a dict
+        """
+        with open('config.json', 'r') as file:
+            config = json.load(file)
+            return config
+
 
 ## ATTENTION NEXT 2 FUNCTIONS MAY CAUSE IMMEDIATE DEATH ONCE SEEN
     def write_joined_token(self, token, invite_code, success=True):
@@ -480,6 +491,11 @@ class JoinBoost(commands.Cog):
 
     @join_decorator.sub_command(name="boost", description="Boost a GUILD using join")
     async def join_boost_guild(self, inter: ApplicationCommandInteraction):
+        config = Filemanager.load_config()
+        owner_ids = config[owner_ids]
+        if inter.author.id not in owner_ids:
+            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+        
         try:
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)
