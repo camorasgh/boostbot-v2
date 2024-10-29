@@ -68,15 +68,15 @@ class Filemanager:
         return tokens[:amount // 2]
 
     
-    async def load_proxies(self) -> None:
+    async def load_proxies(self, bot) -> None:
         try:
             with open("./input/proxies.txt", "r") as file:
                 self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
-            self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
+            bot.logger.info(f"Loaded {len(self.proxies)} proxies")
         except FileNotFoundError:
-            self.bot.logger.error("proxies.txt file not found.")
+            bot.logger.error("proxies.txt file not found.")
         except Exception as e:
-            self.bot.logger.error(f"Error loading proxies: {str(e)}")
+            bot.logger.error(f"Error loading proxies: {str(e)}")
 
     @staticmethod
     async def format_proxy(proxy: str) -> str:
@@ -90,9 +90,9 @@ class Filemanager:
             return f"{auth}@{ip_port}"
         return f"{proxy}"
 
-    async def get_random_proxy(self) -> Any | None:
+    async def get_random_proxy(self, bot) -> Any | None:
         """Return a random proxy from the loaded list, or None if no proxies are available."""
-        await self.load_proxies()
+        await self.load_proxies(bot)
         if self.proxies:
             return random.choice(self.proxies)
         return None
@@ -390,7 +390,7 @@ class Tokenmanager:
         :return:
         """
         try:
-            selected_proxy = await self.filemanager.get_random_proxy()
+            selected_proxy = await self.filemanager.get_random_proxy(self.bot)
             user_id = str(await self.get_userid(token=token)) # still needs to be made
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
@@ -404,7 +404,7 @@ class Tokenmanager:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
 
-    def process_tokens(self, guild_invite: str, amount: int):
+    async def process_tokens(self, guild_invite: str, amount: int):
         """
         idk if this works, old code:
         async def process_tokens(self, guild_invite: str, amount: int):
@@ -412,7 +412,7 @@ class Tokenmanager:
             tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
             await asyncio.gather(*tasks) 
         """
-        tokens_to_process = asyncio.run(Filemanager.load_tokens(amount))
+        tokens_to_process =await Filemanager.load_tokens(amount)
         threads = []
     
         for token in tokens_to_process:
