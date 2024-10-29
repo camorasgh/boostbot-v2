@@ -417,25 +417,22 @@ class Tokenmanager:
 
     async def process_tokens(self, guild_invite: str, amount: int):
         """
-        idk if this works, old code:
-        async def process_tokens(self, guild_invite: str, amount: int):
-            tokens_to_process = await Filemanager.load_tokens(amount)
-            tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
-            await asyncio.gather(*tasks) 
+        Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
+        :param guild_invite: guild invite from modal
+        :param amount: amount to boost
         """
-        tokens_to_process =await Filemanager.load_tokens(amount)
-        threads = []
-    
-        for token in tokens_to_process:
-            thread = threading.Thread(target=lambda: asyncio.run(self.process_single_token(token, guild_invite)))
-            threads.append(thread)
-            thread.start()
-        
-        for thread in threads:
-            thread.join()
+        tokens_to_process = await Filemanager.load_tokens(amount)
+        tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
+        await asyncio.gather(*tasks) 
 
 
 class BoostingModal(ui.Modal):
+    """
+    Handles the modal submission by initiating the boosting process.
+
+    Args:
+        inter: The interaction object from the modal submission.
+    """
     def __init__(self, bot) -> None:
         self.bot = bot
         components = [
@@ -463,7 +460,13 @@ class BoostingModal(ui.Modal):
         try:
             guild_invite = interaction.text_values['boosting.guild_invite']
             amount = int(interaction.text_values['boosting.amount'])
+
+            if amount % 2 != 0:
+                await interaction.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
+                return
+            
             token_mngr = Tokenmanager(self.bot)
+            self.bot.logger.info(f"Boosting {amount} users to guild {guild_invite}")
             await token_mngr.process_tokens(guild_invite=guild_invite, amount=amount)
 
         except Exception as e:
