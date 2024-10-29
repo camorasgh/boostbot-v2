@@ -415,13 +415,20 @@ class Tokenmanager:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
 
-    async def process_tokens(self, guild_invite: str, amount: int):
+    async def process_tokens(self, inter, guild_invite: str, amount: int):
         """
         Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
+        :param inter: Interaction incase of not enough tokens
         :param guild_invite: guild invite from modal
         :param amount: amount to boost
         """
-        tokens_to_process = await Filemanager.load_tokens(amount)
+        try:
+            tokens_to_process = await Filemanager.load_tokens(amount)
+        except ValueError as e:
+            if "Not enough tokens in" in str(e):
+                await inter.followup.send("`ERR_INSUFFICIENT_TOKENS` Amount is higher than the amount of tokens available.", ephemeral=True)
+                return
+
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks) 
 
@@ -467,7 +474,7 @@ class BoostingModal(ui.Modal):
             
             token_mngr = Tokenmanager(self.bot)
             self.bot.logger.info(f"Boosting {amount} users to guild {guild_invite}")
-            await token_mngr.process_tokens(guild_invite=guild_invite, amount=amount)
+            await token_mngr.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount)
 
         except Exception as e:
             self.bot.logger.error(str(e))
