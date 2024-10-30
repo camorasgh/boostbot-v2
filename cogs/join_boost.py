@@ -501,8 +501,8 @@ class JoinBoost(commands.Cog):
 
     @join_decorator.sub_command(name="boost", description="Boost a GUILD using join")
     async def join_boost_guild(self, inter: ApplicationCommandInteraction):
-        config = Filemanager.load_config()
-        owner_ids = config[owner_ids]
+        config = await Filemanager.load_config()
+        owner_ids = config["owner_ids"]
         if inter.author.id not in owner_ids:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
         
