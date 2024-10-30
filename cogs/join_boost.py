@@ -473,7 +473,7 @@ class BoostingModal(ui.Modal):
                 return
             
             token_mngr = Tokenmanager(self.bot)
-            self.bot.logger.info(f"Boosting {amount} users to guild {guild_invite}")
+            self.bot.logger.info(f"Boosting {amount/2} users to guild {guild_invite}")
             await token_mngr.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount)
 
         except Exception as e:
