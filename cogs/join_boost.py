@@ -120,7 +120,7 @@ class Filemanager:
         """
         file_path = self.success_file if success else self.fail_file
         with open(file_path, 'a') as f:
-            f.write(f"{token} joined {invite_code}\n")
+            f.write(f"{token} joined Server {invite_code}\n")
 
     def finalize_logs(self):
         """
@@ -212,7 +212,7 @@ class Tokenmanager:
 
             } if proxy_ else None
             response = self.client.get(
-                url=f"https://canary.discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
+                url=f"https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
                 headers=self.headers(token=token),
                 cookies=self.get_cookies(),
                 proxy=proxy
@@ -297,7 +297,7 @@ class Tokenmanager:
         r_json = response.json()
         if response.status_code == 200:
             self.bot.logger.success('Joined! {} ({})'.format(token, invite_code))
-            Filemanager.write_joined_token(token, invite_code, True) # Here error
+            self.filemanager.write_joined_token(token, invite_code, True) # Here error
             self.joined_count += 1
             guild_id = r_json.get("guild", {}).get("id")
             return True, guild_id
