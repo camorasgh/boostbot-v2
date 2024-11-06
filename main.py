@@ -115,7 +115,7 @@ class Utils:
             return False
 
 
-class Cogloader:
+class Cog_Loader:
     def __init__(self, bot: commands.InteractionBot) -> None:
         self.bot = bot
         self.loaded = 0
@@ -162,6 +162,7 @@ class Cogloader:
 class Banner:
     
     def __init__(self):
+        self.terminal_size = None
         self.banner = r"""
  ▄▀▀▄ ▄▀▀▄  ▄▀▀▀▀▄   ▄▀▀▄▀▀▀▄  ▄▀▀▀█▀▀▄  ▄▀▀█▄▄▄▄  ▄▀▀▄  ▄▀▄ 
 █   █    █ █      █ █   █   █ █    █  ▐ ▐  ▄▀   ▐ █    █   █ 
@@ -175,6 +176,7 @@ class Banner:
         self.links = "[https://discord.gg/camora]    [https://discord.gg/borgo]"
 
     def enable_virtual_terminal(self):
+        self.banner.islower()
         if os.name == 'nt':
             kernel32 = ctypes.windll.kernel32
             handle = kernel32.GetStdHandle(-11)
@@ -198,21 +200,24 @@ class Banner:
 
     def print_alternating_color_text(self, text, center):
         color1, color2 = 93, 93 #, 57
+        center.is_integer()
         for i, char in enumerate(text.center(self.terminal_size.columns)):
             color_code = color1 if i % 2 == 0 else color2
             print(f"\033[38;5;{color_code}m{char}", end="")
         
 class Bot(commands.InteractionBot): # no message commands
     def __init__(self, intents=disnake.Intents.all(), **kwargs):
+
         self.config = self.load_and_validate_config()
         owner_ids = self.config.get('owner_ids', [])
         owner_ids = {int(owner_id) for owner_id in owner_ids}
 
-        super().__init__(owner_ids=owner_ids, intents=intents)
+        super().__init__(owner_ids=owner_ids, intents=intents, **kwargs)
         self.logger = Logger
         self.global_cooldown = commands.CooldownMapping.from_cooldown(5, 60, commands.BucketType.user)
 
     def load_and_validate_config(self) -> Dict[str, Any]:
+
         config = Utils.load_config()
         if not config:
             raise ValueError("Configuration file could not be loaded.")
@@ -223,7 +228,7 @@ class Bot(commands.InteractionBot): # no message commands
         for key in required_keys:
             if key not in config:
                 raise ValueError(f"Missing required configuration parameter: {key}")
-
+        self.__repr__()
         return config
 
     #cooldown
@@ -240,32 +245,32 @@ class Bot(commands.InteractionBot): # no message commands
         await super().process_commands(message) # type: ignore
 
 
-bot = Bot()
+vortex = Bot()
 
 
-@bot.listen("on_ready")
+@vortex.listen("on_ready")
 async def on_ready_listener():
-    cogs = Cogloader(bot)
+    cogs = Cog_Loader(vortex)
     cogs.load()
     print()
 
-    Logger.success(f"Bot is online as: {bot.user.name}")
+    Logger.success(f"Bot is online as: {vortex.user.name}")
     cogs_results = cogs.get_results()
     Logger.info(f"Loaded {cogs_results['loaded']} cogs")
     if cogs_results.get('not_loaded'):
         Logger.error(f"Failed to load {cogs_results['not_loaded']} cogs")
         for error in cogs_results['errors']:
             Logger.error(error)
-    Logger.info(f"Registered Commands: {len(bot.all_slash_commands)}")
+    Logger.info(f"Registered Commands: {len(vortex.all_slash_commands)}")
 
-@bot.event
+@vortex.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
     bucket = bot.global_cooldown.get_bucket(inter) # type: ignore
     retry_after = bucket.update_rate_limit()
     if retry_after:
         await inter.response.send_message(f"You're using commands too fast. Try again in {retry_after:.2f} seconds.", ephemeral=True)
         return
-    await bot.process_application_commands(inter)
+    await vortex.process_application_commands(inter)
 
 
 # pip install git+https://github.com/DisnakeDev/disnake.git@feature/user-apps-v2
@@ -274,7 +279,7 @@ if __name__ == "__main__":
     Banner = Banner()
     Banner.print_banner()
     try:
-        bot.run(bot.config.get("token"))
+        vortex.run(vortex.config.get("token"))
         colorama.init(autoreset=True)
     except disnake.errors.LoginFailure:
         Logger.error("Improper token has been passed.")

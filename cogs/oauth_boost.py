@@ -5,10 +5,9 @@ import disnake
 import json
 import os
 import random
-import threading
 from typing import List, Dict, Optional, Tuple
 
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes
 from disnake.ext import commands
 
 
@@ -141,12 +140,14 @@ class TokenManager:
         try:
             if '@' in proxy:
                 auth, ip_port = proxy.split('@')
+                # noinspection HttpUrlsUsage
                 return f"http://{auth}@{ip_port}"
+            # noinspection HttpUrlsUsage
             return f"http://{proxy}"
         except Exception as e:
             return f"`ERR_PROXY_FORMATTING` Error formatting proxy: {str(e)}"
 
-    def get_proxy(self) -> Optional[Dict[str, str]]:
+    def get_proxy(self) -> Optional[Dict[str, str] | Dict[str, None]]:
         """
         Retrieves a random available proxy.
 
@@ -252,7 +253,7 @@ class TokenManager:
             self.counter.increment_failed_boosts(token)
             return f"Error boosting token: {token[:10]}"
 
-    async def __get_boost_data(self, token: str) -> Optional[List[str]]:
+    async def __get_boost_data(self, token: str) -> Optional[List[str] | Tuple[None, None]]:
         """
         Retrieves boost slot IDs for the given token.
 
@@ -540,7 +541,7 @@ class BoostingModal(disnake.ui.Modal):
                 return
 
             token_manager = TokenManager(self.bot)
-            self.bot.logger.info(f"Boosting {amount} users to guild {guild_id}")
+            self.bot.logger.info(f"Boosting {amount} users to guild {guild_id}") # type: ignore
             errors = await token_manager.process_tokens(guild_id, amount)
             token_manager.save_results(guild_id, amount)
 
@@ -560,7 +561,7 @@ class BoostingModal(disnake.ui.Modal):
                 )
                 await inter.followup.send(embed=embed)
         except Exception as e:
-            self.bot.logger.error(str(e))
+            self.bot.logger.error(str(e)) # type: ignore
             await inter.followup.send("`ERR_UNKNOWN_EXCEPTION` An error occurred while boosting.", ephemeral=True)
 
 
@@ -593,8 +594,8 @@ class OAuthBoost(commands.Cog):
         Args:
             inter: The interaction object from the command.
         """
-        config = TokenManager.load_config()
-        owner_ids = config[owner_ids]
+        config = await TokenManager.load_config()
+        owner_ids = config['owner_ids']
         if inter.author.id not in owner_ids:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
 
@@ -602,7 +603,7 @@ class OAuthBoost(commands.Cog):
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)
         except Exception as e:
-            self.bot.logger.error(str(e))
+            self.bot.logger.error(str(e)) # type: ignore
             await inter.response.send_message("`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
 
 

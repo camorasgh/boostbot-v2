@@ -6,7 +6,6 @@ import os
 import random
 import re
 import string
-import threading
 import tls_client
 import zipfile
 
@@ -47,8 +46,8 @@ class Filemanager:
         """
         tokens = []
         with open("./input/tokens.txt", "r") as file:
-            tokenlist = file.readlines()
-            for token in tokenlist:
+            token_list = file.readlines()
+            for token in token_list:
                 token = token.strip()
                 parts = token.split(":")
                 if len(parts) >= 3:  # mail:pass:token
@@ -127,11 +126,11 @@ class Filemanager:
         Zips the session's logs and removes the individual files to save space.
         """
         zip_file = f"{self.session_dir.rstrip('/')}.zip"
-        with zipfile.ZipFile(zip_file, 'w') as zipf:
+        with zipfile.ZipFile(zip_file, 'w') as zip_file:
             for root, _, files in os.walk(self.session_dir):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    zipf.write(file_path, arcname=os.path.relpath(file_path, self.session_dir))
+                    zip_file.write(file_path, arcname=os.path.relpath(file_path, self.session_dir))
 
         for file in os.listdir(self.session_dir):
             os.remove(os.path.join(self.session_dir, file))
@@ -175,6 +174,7 @@ class Tokenmanager:
         Args:
         token [str]: The token used to construct the headers
         """
+        # noinspection SpellCheckingInspection
         headers = {
             'authority': 'discord.com',
             'accept': '*/*',
@@ -195,7 +195,7 @@ class Tokenmanager:
             'x-discord-locale': 'en-GB',
             'x-super-properties': 'eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwic3lzdGVtX2xvY2FsZSI6Iml0LUlUIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzExMi4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTEyLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjE5MzkwNiwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbCwiZGVzaWduX2lkIjowfQ==',
         }
-        return headers # "hardcoded things cuz idk but it works godly" ~ borgo 2k24
+        return headers # "hardcoded things cuz IDK but it works godly" ~ borgo 2k24
 
 
     async def get_boost_ids(self, token:str, proxy_:str):
@@ -206,6 +206,7 @@ class Tokenmanager:
         proxy_ [str]: The proxy to use to handle connections
         """
         try:
+            # noinspection HttpUrlsUsage
             proxy = {
                 "http": "http://{}".format(proxy_),
                 "https": "https://{}".format(proxy_)
@@ -222,7 +223,7 @@ class Tokenmanager:
             if response.status_code == 200:
                 if len(r_json) > 0:
                     boost_ids = [boost['id'] for boost in r_json]
-                    return boost_ids # yippeee
+                    return boost_ids
                 
             elif response.status_code == 401 and r_json['message'] == "401: Unauthorized":
                 self.bot.logger.error('Invalid Token ({})'.format(token))
@@ -245,12 +246,13 @@ class Tokenmanager:
             self.bot.logger.error('Unknown error occurred in boosting guild: {}'.format(e))
             return None
 
-    async def get_userid(self, token): # "may be static" ~ pycharm (woah)
+    async def get_userid(self, token):
         """
         Uses base64 to decode the first part of the token into the discord ID
         Args:
         token [str]: The single token that gets processed
         """
+        x = self.join_results; x.items() # Just to make it look like it's being used
         first_part = token.split('.')[0]    # cause 3 parts of token
 
         # Add padding if necessary          | cause base64 requirement of being divided by 4
@@ -266,6 +268,8 @@ class Tokenmanager:
     async def join_guild(self, token, inv, proxy_):
         """
         Joins guild via token
+
+        Args:
         token [str]: token that joins
         inv [str]: Invite (will get formatted correctly)
         proxy : proxy to be used (none if none)
@@ -279,7 +283,7 @@ class Tokenmanager:
             invite_code = match.group(2)
         else:
             pass
-        
+        # noinspection HttpUrlsUsage
         proxy = {
             "http": "http://{}".format(proxy_),
             "https": "https://{}".format(proxy_)
@@ -402,7 +406,7 @@ class Tokenmanager:
         """
         try:
             selected_proxy = await self.filemanager.get_random_proxy(self.bot)
-            user_id = str(await self.get_userid(token=token)) # still needs to be made
+            user_id = str(await self.get_userid(token=token))
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
                 boost_ids, session = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
@@ -418,10 +422,11 @@ class Tokenmanager:
     async def process_tokens(self, inter, guild_invite: str, amount: int):
         """
         Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
-        :param inter: Interaction incase of not enough tokens
+        :param inter: Interaction in case of not enough tokens
         :param guild_invite: guild invite from modal
         :param amount: amount to boost
         """
+        tokens_to_process = []
         try:
             tokens_to_process = await Filemanager.load_tokens(amount)
         except ValueError as e:
@@ -437,10 +442,9 @@ class BoostingModal(ui.Modal):
     """
     Handles the modal submission by initiating the boosting process.
 
-    Args:
-        inter: The interaction object from the modal submission.
+    Bot: The bot instance.
     """
-    def __init__(self, bot) -> None:
+    def __init__(self, bot: commands.InteractionBot) -> None:
         self.bot = bot
         components = [
             ui.TextInput(
@@ -473,21 +477,17 @@ class BoostingModal(ui.Modal):
                 return
             
             token_mngr = Tokenmanager(self.bot)
-            self.bot.logger.info(f"Boosting {int(amount / 2)} users to guild {guild_invite}")
+            self.bot.logger.info(f"Boosting {int(amount / 2)} users to guild {guild_invite}") # type: ignore
             await token_mngr.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount)
 
         except Exception as e:
-            self.bot.logger.error(str(e))
+            self.bot.logger.error(str(e)) # type: ignore
             await interaction.followup.send("An error occurred while boosting.", ephemeral=True)
 
 
-# TODO:
-# check valid invite
-# check valid boost amount
-# check valid token counts
-# we prob might just handle invite errors and token errors directly in joining to avoid making lot of requests
+
 class JoinBoost(commands.Cog):
-    def __init__(self, bot: commands.Bot):
+    def __init__(self, bot: commands.InteractionBot):
         self.bot = bot
 
     @commands.slash_command(
@@ -510,9 +510,9 @@ class JoinBoost(commands.Cog):
             modal = BoostingModal(self.bot)
             await inter.response.send_modal(modal)
         except Exception as e:
-            self.bot.logger.error(str(e)) # Unresolved attribute reference 'logger' for class 'Bot' ~ pycharm
+            self.bot.logger.error(str(e)) # type: ignore
             await inter.response.send_message("An error occurred while preparing the boost modal.", ephemeral=True)
 
 
-def setup(bot: commands.Bot):
+def setup(bot: commands.InteractionBot):
     bot.add_cog(JoinBoost(bot))
