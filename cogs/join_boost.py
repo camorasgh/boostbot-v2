@@ -139,8 +139,9 @@ class Filemanager:
 class Tokenmanager:
     def __init__(self, bot):
         self.bot = bot
+        # PLEASE DO NOT CHANGE THIS UNLESS I GIVE YOU PERMISSION, THIS FUCKING CLIENT IDENTIFIER IS THE REASON OF MY MENTAL ISSUES
         self.client = tls_client.Session(
-            client_identifier="chrome_112",
+            client_identifier="chrome112", # type: ignore
             random_tls_extension_order=True
         )
         self.join_results: Dict[str, bool] = {}
@@ -277,18 +278,21 @@ class Tokenmanager:
         payload = {
             'session_id': ''.join(random.choice(string.ascii_lowercase) + random.choice(string.digits) for _ in range(16))
         }
-        invite_code = r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$"
-        match = re.search(invite_code, inv)
-        if match:
-            invite_code = match.group(2)
-        else:
-            pass
+        
         # noinspection HttpUrlsUsage
         proxy = {
             "http": "http://{}".format(proxy_),
             "https": "https://{}".format(proxy_)
 
         } if proxy_ else None
+        
+        invite_code = r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$"
+        match = re.search(invite_code, inv)
+        if match:
+            invite_code = match.group(2)
+        else:
+            pass
+        
 
         response = self.client.post(
             url='https://discord.com/api/v9/invites/{}'.format(invite_code),

@@ -186,7 +186,7 @@ class Banner:
 
     def print_banner(self):
         self.enable_virtual_terminal()
-        terminal_size = os.get_terminal_size()
+        terminal_size = shutil.get_terminal_size()
         self.terminal_size = terminal_size
         banner_lines = self.banner.split("\n")
         gradient_purple = [53, 55, 56, 57, 93, 129, 165, 201]
@@ -265,7 +265,7 @@ async def on_ready_listener():
 
 @vortex.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
-    bucket = bot.global_cooldown.get_bucket(inter) # type: ignore
+    bucket = vortex.global_cooldown.get_bucket(inter) # type: ignore
     retry_after = bucket.update_rate_limit()
     if retry_after:
         await inter.response.send_message(f"You're using commands too fast. Try again in {retry_after:.2f} seconds.", ephemeral=True)
