@@ -11,7 +11,7 @@ import zipfile
 
 from datetime import datetime
 
-from disnake import ModalInteraction, ui, TextInputStyle
+from disnake import ModalInteraction, ui, TextInputStyle, SelectOption
 from disnake.ext import commands
 from typing import Dict, Any
 
@@ -20,6 +20,13 @@ from disnake import InteractionContextTypes, ApplicationIntegrationTypes, Applic
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
 DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
+
+
+class TokenTypeError(Exception):
+    """Custom error for issues related to loading tokens."""
+    def __init__(self, message: str) -> None:
+        self.message = message
+        super().__init__(self.message)
 
 
 class Filemanager:
@@ -31,12 +38,13 @@ class Filemanager:
         self.fail_file = os.path.join(self.session_dir, "JOIN_FAILS.txt")
 
     @staticmethod
-    async def load_tokens(amount):
+    async def load_tokens(amount : int, token_type : str):
         """
         Load a specified number of tokens from a file.
         
         Args:
-            amount (int): The number of tokens to load.
+            amount (int):       The number of tokens to load.
+            token_type (str):   The token type to load (1m/3m)
 
         Returns:
             list: A list of loaded tokens.
@@ -45,7 +53,14 @@ class Filemanager:
             ValueError: If the number of tokens in the file is less than the specified amount.
         """
         tokens = []
-        with open("./input/tokens.txt", "r") as file:
+        if token_type == "1m":
+            file_name = "1m_tokens.txt"
+        elif token_type == "3m":
+            file_name = "3m_tokens.txt"
+        else:
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")
+
+        with open(f"./input/{file_name}", "r") as file:
             token_list = file.readlines()
             for token in token_list:
                 token = token.strip()
@@ -423,20 +438,24 @@ class Tokenmanager:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
 
-    async def process_tokens(self, inter, guild_invite: str, amount: int):
+    async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
         """
         Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
         :param inter: Interaction in case of not enough tokens
         :param guild_invite: guild invite from modal
         :param amount: amount to boost
+        :param token_type: type of token (1m/3m)
         """
         tokens_to_process = []
         try:
-            tokens_to_process = await Filemanager.load_tokens(amount)
+            tokens_to_process = await Filemanager.load_tokens(amount, token_type)
         except ValueError as e:
             if "Not enough tokens in" in str(e):
                 await inter.followup.send("`ERR_INSUFFICIENT_TOKENS` Amount is higher than the amount of tokens available.", ephemeral=True)
                 return
+        except TokenTypeError:
+            await inter.followup.send("`ERR_INVALID_TOKEN_TYPE` Please use a valid token type such as 1m/3m")
+            return
 
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks) 
@@ -467,6 +486,14 @@ class BoostingModal(ui.Modal):
                 min_length=1,
                 max_length=2
             ),
+            ui.Select(
+                placeholder="Choose Token Type",
+                options=[
+                    SelectOption(label="1 Month", value="1m"),
+                    SelectOption(label="3 Months", value="3m")
+                ],
+                custom_id="boosting.token_type",
+            )
         ]
         super().__init__(title="Join Booster", components=components)
 
@@ -475,14 +502,15 @@ class BoostingModal(ui.Modal):
         try:
             guild_invite = interaction.text_values['boosting.guild_invite']
             amount = int(interaction.text_values['boosting.amount'])
+            token_type = interaction.data['components'][2]['value']
 
             if amount % 2 != 0:
                 await interaction.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
             
-            token_mngr = Tokenmanager(self.bot)
+            tkn = Tokenmanager(self.bot)
             self.bot.logger.info(f"Boosting {int(amount / 2)} users to guild {guild_invite}") # type: ignore
-            await token_mngr.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount)
+            await tkn.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount, token_type=token_type)
 
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
