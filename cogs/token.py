@@ -14,8 +14,9 @@ class Token(commands.Cog):
 
         with open("config.json", "r") as f:
             self.config = json.load(f)
-        self.owner_ids = self.config.get("owner_id", [])
+        self.owner_ids = self.config["owner_ids"]
         self.timezone = datetime.timezone.utc
+        self.file_paths = ["./input/1m_tokens.txt", "./input/3m_tokens.txt"]
 
     @commands.slash_command(name="tokens", description="Token management commands")
     async def tokens(self, inter):
@@ -145,19 +146,19 @@ class Token(commands.Cog):
             await inter.response.send_message("You are not authorized to use this command.", ephemeral=True)
             return
 
-        file_path = "input/tokens.txt"
-        if not os.path.exists(file_path):
-            await inter.response.send_message("The file tokens.txt does not exist.", ephemeral=True)
-            return
+        for file_path in self.file_paths:
+            if not os.path.exists(file_path):
+                await inter.response.send_message("The file tokens.txt does not exist.", ephemeral=True)
+                return
 
-        try:
-            await inter.author.send(file=disnake.File(file_path))
-            await inter.response.send_message("The tokens.txt file has been sent to your DMs.", ephemeral=True)
-        except disnake.Forbidden:
-            await inter.response.send_message(
-                "File couldn't be sent to your DMs. Please enable DMs and try again.",
-                ephemeral=True
-            )
+            try:
+                await inter.author.send(file=disnake.File(file_path))
+                await inter.response.send_message("The tokens.txt file(s) has/have been sent to your DMs.", ephemeral=True)
+            except disnake.Forbidden:
+                await inter.response.send_message(
+                    "File couldn't be sent to your DMs. Please enable DMs and try again.",
+                    ephemeral=True
+                )
 
 
 class NitrolessRemovalButton(disnake.ui.View):
