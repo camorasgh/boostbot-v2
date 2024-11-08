@@ -200,7 +200,6 @@ class Banner:
 
     def print_alternating_color_text(self, text, center):
         color1, color2 = 93, 93 #, 57
-        center.is_integer()
         for i, char in enumerate(text.center(self.terminal_size.columns)):
             color_code = color1 if i % 2 == 0 else color2
             print(f"\033[38;5;{color_code}m{char}", end="")

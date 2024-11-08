@@ -25,7 +25,7 @@ class Token(commands.Cog):
     async def check(self, inter: ApplicationCommandInteraction, token_type: str = commands.Param(choices=["1M", "3M"])):
         await inter.response.defer(with_message=True)
 
-        file_path = f'assets/{token_type.lower()}_tokens.txt'
+        file_path = f'./input/{token_type.lower()}_tokens.txt'
 
         async with aiohttp.ClientSession() as session:
             with open(file_path, 'r') as file:
