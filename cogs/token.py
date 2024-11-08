@@ -68,52 +68,6 @@ class Token(commands.Cog):
                 view = NitrolessRemovalButton(self, file_path)
                 await inter.followup.send(embed=removal_embed, view=view)
 
-    @commands.slash_command(description="Check and filter tokens")
-    async def check(self, inter: disnake.ApplicationCommandInteraction,
-                    token_type: str = commands.Param(choices=["1M", "3M"])):
-        await inter.response.defer(with_message=True)
-
-        file_path = f'assets/{token_type.lower()}_tokens.txt'
-        valid_tokens, invalid_count, no_nitro_count, results = [], 0, 0, []
-
-        async with aiohttp.ClientSession() as session:
-            with open(file_path, 'r') as file:
-                tokens = [token.strip() for token in file.readlines()]
-
-            for token in tokens:
-                result = await self.check_token(session, token)
-                if result['status'] == "valid":
-                    valid_tokens.append(token)
-                    results.append(result)
-                    if result['type'] == "No Nitro":
-                        no_nitro_count += 1
-                else:
-                    invalid_count += 1
-
-            with open(file_path, 'w') as file:
-                file.writelines(f"{token}\n" for token in valid_tokens)
-
-            embed = disnake.Embed(
-                title=f"Token Check Results - {token_type}",
-                color=disnake.Color.purple()
-            )
-            for res in results:
-                embed.add_field(name=res['title'], value=res['description'], inline=False)
-
-            if invalid_count:
-                embed.add_field(name="Invalid Tokens Removed", value=f"{invalid_count} invalid tokens removed.",
-                                inline=False)
-            await inter.followup.send(embed=embed)
-
-            if no_nitro_count > 0:
-                removal_embed = disnake.Embed(
-                    title="Remove Tokens Without Nitro?",
-                    description=f"Found {no_nitro_count} tokens without Nitro. Remove them?",
-                    color=disnake.Color.purple()
-                )
-                view = NitrolessRemovalButton(self, file_path)
-                await inter.followup.send(embed=removal_embed, view=view)
-
     async def check_token(self, session, token):
         now = datetime.datetime.now(self.timezone).strftime('%H:%M')
         headers = {"Authorization": token}
@@ -162,7 +116,8 @@ class Token(commands.Cog):
             "description": f"Token: {self.mask_token(token)} | User: {user['username']}#{user['discriminator']}"
         }
 
-    def mask_token(self, token):
+    @staticmethod
+    def mask_token(token):
         return token[:len(token) // 4] + "***"
 
     @tokens.sub_command(name="send", description="Sends all available tokens to the owner in a .txt file")
@@ -188,10 +143,17 @@ class Token(commands.Cog):
 
 class NitrolessRemovalButton(disnake.ui.View):
     def __init__(self, cog, file_path):
+        """
+        Button cog to remove nitroless tokens
+        :param cog:
+        :param file_path:
+        """
         super().__init__()
         self.cog = cog
         self.file_path = file_path
 
+    # noinspection PyUnusedLocal
+    # (button variable)
     @disnake.ui.button(label="Yes", style=disnake.ButtonStyle.danger)
     async def confirm(self, button: disnake.ui.Button, interaction: disnake.Interaction):
         await self.cog.remove_nitroless_tokens(interaction, self.file_path)
