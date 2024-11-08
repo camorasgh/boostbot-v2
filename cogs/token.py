@@ -11,7 +11,6 @@ from disnake.ext import commands
 class Token(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.user_tokens = {}
 
         with open("config.json", "r") as f:
             self.config = json.load(f)
@@ -32,8 +31,8 @@ class Token(commands.Cog):
             with open(file_path, 'r') as file:
                 tokens = [token.strip() for token in file.readlines()]
 
-            valid_tokens, invalid_count, no_nitro_count, results = [], 0, 0, []
-
+            invalid_count, no_nitro_count, results = 0, 0, []
+            valid_tokens, nitroless_tokens = [], []
             for token in tokens:
                 result = await self.check_token(session, token)
                 if result['status'] == "valid":
@@ -41,6 +40,7 @@ class Token(commands.Cog):
                     results.append(result)
                     if result['type'] == "No Nitro":
                         no_nitro_count += 1
+                        nitroless_tokens.append(token)
                 else:
                     invalid_count += 1
 
@@ -51,8 +51,10 @@ class Token(commands.Cog):
                 title=f"Token Check Results - {token_type}",
                 color=disnake.Color.purple()
             )
+            """
             for res in results:
                 embed.add_field(name=res['title'], value=res['description'], inline=False)
+            """
 
             if invalid_count:
                 embed.add_field(name="Invalid Tokens Removed", value=f"{invalid_count} invalid tokens removed.", inline=False)
@@ -65,7 +67,7 @@ class Token(commands.Cog):
                     description=f"Found {no_nitro_count} tokens without Nitro. Remove them?",
                     color=disnake.Color.purple()
                 )
-                view = NitrolessRemovalButton(self, file_path)
+                view = NitrolessRemovalButton(self, file_path, nitroless_tokens)
                 await inter.followup.send(embed=removal_embed, view=view)
 
     async def check_token(self, session, token):
@@ -120,6 +122,23 @@ class Token(commands.Cog):
     def mask_token(token):
         return token[:len(token) // 4] + "***"
 
+    @staticmethod
+    async def remove_nitroless_tokens(interaction, file_path, nitroless_tokens):
+        """
+        Removes the specified list of tokens without Nitro from the file.
+        :param interaction: disnake interaction
+        :param file_path: path to and the file (e.g. input/3m_tokens.txt)
+        :param nitroless_tokens: list of tokens not owning nitro
+        """
+        with open(file_path, 'r') as file:
+            tokens = [token.strip() for token in file.readlines()]
+        tokens_with_nitro = [token for token in tokens if token not in nitroless_tokens]
+        
+        with open(file_path, 'w') as file:
+            file.writelines(f"{token}\n" for token in tokens_with_nitro)
+        removed_count = len(tokens) - len(tokens_with_nitro)
+        await interaction.response.send_message(f"Removed {removed_count} tokens without Nitro.", ephemeral=True)
+
     @tokens.sub_command(name="send", description="Sends all available tokens to the owner in a .txt file")
     async def send(self, inter: ApplicationCommandInteraction):
         if inter.author.id not in self.owner_ids:
@@ -142,7 +161,7 @@ class Token(commands.Cog):
 
 
 class NitrolessRemovalButton(disnake.ui.View):
-    def __init__(self, cog, file_path):
+    def __init__(self, cog, file_path, nitroless_tokens):
         """
         Button cog to remove nitroless tokens
         :param cog:
@@ -151,12 +170,13 @@ class NitrolessRemovalButton(disnake.ui.View):
         super().__init__()
         self.cog = cog
         self.file_path = file_path
+        self.nitroless_tokens = nitroless_tokens
 
     # noinspection PyUnusedLocal
     # (button variable)
     @disnake.ui.button(label="Yes", style=disnake.ButtonStyle.danger)
     async def confirm(self, button: disnake.ui.Button, interaction: disnake.Interaction):
-        await self.cog.remove_nitroless_tokens(interaction, self.file_path)
+        await self.cog.remove_nitroless_tokens(interaction, self.file_path, self.nitroless_tokens)
         self.stop()
 
 
