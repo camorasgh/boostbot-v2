@@ -75,7 +75,6 @@ class Token(commands.Cog):
         now = datetime.datetime.now(self.timezone).strftime('%H:%M')
         headers = {"Authorization": token}
 
-        # Get user info
         async with session.get("https://discord.com/api/v9/users/@me", headers=headers) as response:
             if response.status != 200:
                 return {"status": "invalid", "title": "Invalid Token",
@@ -84,7 +83,7 @@ class Token(commands.Cog):
 
         if user["premium_type"] == 0:
             return {"status": "valid", "type": "No Nitro", "title": f"{now} - No Nitro",
-                    "description": f"Token: {self.mask_token(token)} | User: {user['username']}#{user['discriminator']}"}
+                    "description": f"Token: {self.mask_token(token)}"}
 
         elif user["premium_type"] == 2:
             async with session.get("https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
@@ -109,14 +108,14 @@ class Token(commands.Cog):
                 "status": "valid",
                 "type": "Nitro Boost",
                 "title": f"{now} - Nitro Boost",
-                "description": f"Token: {self.mask_token(token)} | User: {user['username']} | Boosts: {available_boosts} | Expiry: {nitro_expires} | Server Boosted: {boosted_server}"
+                "description": f"Token: {self.mask_token(token)} | Boosts: {available_boosts} | Expiry: {nitro_expires} | Server Boosted: {boosted_server}"
             }
 
         return {
             "status": "valid",
             "type": "Nitro Basic",
             "title": f"{now} - Nitro Basic",
-            "description": f"Token: {self.mask_token(token)} | User: {user['username']}#{user['discriminator']}"
+            "description": f"Token: {self.mask_token(token)}"
         }
 
     @staticmethod
