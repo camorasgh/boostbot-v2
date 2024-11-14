@@ -9,7 +9,7 @@ from typing import List, Dict, Optional, Tuple
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption 
 from disnake.ext import commands
-from .misc import TokenTypeError
+from .misc import TokenTypeError, load_config
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -68,15 +68,6 @@ class TokenManager:
         self.failed_proxies: set = set()
         self.counter = JoinBoostCounter()
         self.authorized_users: Dict[str, Dict[str, str]] = {}
-
-    @staticmethod
-    async def load_config() -> Dict:
-        """
-        Loads the config.json as a dict
-        """
-        with open('config.json', 'r') as file:
-            config = json.load(file)
-            return config
 
     async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
         """
@@ -610,7 +601,7 @@ class OAuthBoost(commands.Cog):
         Args:
             inter: The interaction object from the command.
         """
-        config = await TokenManager.load_config()
+        config = await load_config()
         owner_ids = config['owner_ids']
         if inter.author.id not in owner_ids:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
