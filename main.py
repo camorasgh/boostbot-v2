@@ -198,7 +198,7 @@ class Banner:
         self.print_alternating_color_text(self.links, (terminal_size.columns - len(self.links)) // 2)
         print("\033[0m")
 
-    def print_alternating_color_text(self, text, center):
+    def print_alternating_color_text(self, text):
         color1, color2 = 93, 93 #, 57
         for i, char in enumerate(text.center(self.terminal_size.columns)):
             color_code = color1 if i % 2 == 0 else color2
