@@ -7,9 +7,9 @@ import os
 import random
 from typing import List, Dict, Optional, Tuple
 
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption 
 from disnake.ext import commands
-
+from .misc import TokenTypeError
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -78,7 +78,7 @@ class TokenManager:
             config = json.load(file)
             return config
 
-    async def load_tokens(self, amount: int) -> Optional[str]:
+    async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
         """
         Loads a specified amount of tokens from a file.
 
@@ -88,8 +88,15 @@ class TokenManager:
         Returns:
             An error message if loading fails, or None if successful.
         """
+        
+        if token_type == "1m":
+            file_name = "1m_tokens.txt"
+        elif token_type == "3m":
+            file_name = "3m_tokens.txt"
+        else:
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")#
         try:
-            with open("input/tokens.txt", "r") as file:
+            with open(f"./input/{file_name}", "r") as file:
                 all_tokens = [line.strip() for line in file if line.strip()]
 
             available_tokens = len(all_tokens) * 2
@@ -98,7 +105,7 @@ class TokenManager:
             tokens_to_process = all_tokens[:amount]
             remaining_tokens = all_tokens[amount:]
 
-            with open("input/tokens.txt", "w") as file:
+            with open(f"./input/{file_name}", "r") as file:
                 for token in remaining_tokens:
                     file.write(f"{token}\n")
 
@@ -316,7 +323,7 @@ class TokenManager:
 
         return errors
 
-    async def process_tokens(self, guild_id: str, amount: int) -> List[str]:
+    async def process_tokens(self, guild_id: str, amount: int, token_type: str) -> List[str]:
         """
         Processes multiple tokens to join and boost a guild.
 
@@ -328,7 +335,7 @@ class TokenManager:
             A list of error messages encountered during processing.
         """
         try:
-            load_tokens_error = await self.load_tokens(amount)
+            load_tokens_error = await self.load_tokens(amount, token_type)
             if load_tokens_error:
                 return [load_tokens_error]
 
@@ -515,6 +522,14 @@ class BoostingModal(disnake.ui.Modal):
                 min_length=1,
                 max_length=3
             ),
+            disnake.ui.Select(
+                placeholder="Choose Token Type",
+                options=[
+                    SelectOption(label="1 Month", value="1m"),
+                    SelectOption(label="3 Months", value="3m")
+                ],
+                custom_id="boosting.token_type",
+            )
         ]
         super().__init__(title="OAUTH Booster", components=components)
 
@@ -536,13 +551,14 @@ class BoostingModal(disnake.ui.Modal):
                 await inter.followup.send("`ERR_NOT_IN_GUILD` Bot is not in the specified guild.", ephemeral=True)
                 return
             amount = int(inter.text_values['boosting.amount'])
+            token_type = str(inter.text_values['boosting.token_type'])
             if amount % 2 != 0:
                 await inter.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
 
             token_manager = TokenManager(self.bot)
             self.bot.logger.info(f"Boosting {amount} users to guild {guild_id}") # type: ignore
-            errors = await token_manager.process_tokens(guild_id, amount)
+            errors = await token_manager.process_tokens(guild_id, amount, token_type)
             token_manager.save_results(guild_id, amount)
 
             if errors:

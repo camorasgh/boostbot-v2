@@ -142,6 +142,8 @@ class Cog_Loader:
         for file in os.listdir("./cogs"):
             if not file.endswith(".py"):
                 continue
+            if file[:-3] == "misc":
+                continue # misc.py is for miscellaneous features across files
 
             extension = f"cogs.{file[:-3]}"
             if extension in self.bot.extensions:
