@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
-from disnake import ModalInteraction, ui, TextInputStyle, SelectOption
+from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
 from disnake.ext import commands
 from .misc import TokenTypeError, load_config, get_headers
 
@@ -387,6 +387,51 @@ class Tokenmanager:
         except Exception as e:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
+    async def send_summary_embed(self, inter: ApplicationCommandInteraction):
+        """
+        Sends an embed summarizing the join and boost results.
+        Resets the stats afterward to avoid stale data.
+        Params:
+        :param inter: Interaction, Provided by Discord
+        """
+
+        async def censor_token(token: str) -> str:
+            """Censors the token to show only the part till the first dot"""
+            parts = token.split('.')
+            return f"{parts[0]}.***" if len(parts) > 1 else "***"
+        embed = Embed(
+            title="Boosting Operation Summary",
+            color=0x00FF00 if self.joined_count > 0 else 0xFF0000,  # Green if any joined, red if none
+        )
+        embed.add_field(
+            name="Joining Results",
+            value=f"**Joined Successfully:** {self.joined_count}\n"
+                  f"**Failed to Join:** {self.not_joined_count}",
+            inline=False
+        )
+        if self.join_results:
+            join_results_str = "\n".join(
+                [f"• `{await censor_token(token)}`: {'✅' if success else '❌'}" for token, success in
+                 self.join_results.items()]
+            )
+            embed.add_field(
+                name="Join Results Details",
+                value=join_results_str[:1024],  # Discord field size limit
+                inline=False
+            )
+        success_boosts = sum(1 for success in self.boost_results.values() if success)
+        failed_boosts = len(self.boost_results) - success_boosts
+        embed.add_field(
+            name="Boosting Results",
+            value=f"**Successful Boosts:** {success_boosts}\n"
+                  f"**Failed Boosts:** {failed_boosts}",
+            inline=False
+        )
+        self.join_results.clear()
+        self.boost_results.clear()
+        self.joined_count = 0
+        self.not_joined_count = 0
+        await inter.followup.send(embed=embed, ephemeral=True)
 
     async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
         """
@@ -408,7 +453,8 @@ class Tokenmanager:
             return
 
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
-        await asyncio.gather(*tasks) 
+        await asyncio.gather(*tasks)
+        await self.send_summary_embed(inter)
 
 
 class BoostingModal(ui.Modal):
