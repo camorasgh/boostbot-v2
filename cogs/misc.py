@@ -1,4 +1,5 @@
 import json
+
 from typing import Dict
 
 
@@ -16,7 +17,7 @@ async def load_config() -> Dict:
     with open('config.json', 'r') as file:
         config = json.load(file)
         return config
-    
+
 
 def get_headers(token: str):
     """

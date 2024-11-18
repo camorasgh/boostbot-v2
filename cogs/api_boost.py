@@ -13,7 +13,7 @@ from typing import Dict, Any
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake import ModalInteraction, ui, TextInputStyle, SelectOption
 from disnake.ext import commands
-from misc import TokenTypeError, load_config, get_headers
+from .misc import TokenTypeError, load_config, get_headers
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()

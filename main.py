@@ -197,7 +197,7 @@ class Banner:
             color_index = gradient_purple[i % len(gradient_purple)]
             print(f"\033[38;5;{color_index}m{line.center(terminal_size.columns)}")
 
-        self.print_alternating_color_text(self.links, (terminal_size.columns - len(self.links)) // 2)
+        self.print_alternating_color_text(self.links)
         print("\033[0m")
 
     def print_alternating_color_text(self, text):

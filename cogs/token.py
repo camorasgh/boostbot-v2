@@ -1,14 +1,21 @@
+import aiohttp
+import asyncio
 import datetime
+import disnake
 import json
 import os
 from typing import Tuple
 
-import aiohttp
-import disnake
-from disnake import ApplicationCommandInteraction, Option
+from disnake import ApplicationCommandInteraction
 from disnake.ext import commands
 
-from misc import get_headers
+from .misc import get_headers
+
+Tokentype = commands.option_enum({
+    "1M Token": "1m_token",
+    "3M Token": "3m_token",
+    "All": "all",
+})
 
 
 class Token(commands.Cog):
@@ -144,20 +151,16 @@ class Token(commands.Cog):
 
     @tokens.sub_command(name="brand", description="Brands a whole stock to your configuration")
     async def brand_token(
-        self,
-        inter: ApplicationCommandInteraction,
-        token_type: str = Option(
-            name="token_type",
-            description="Choose the token type",
-            choices=["1m_token", "3m_token", "all"],
-            required=True
-        ),
+            self,
+            inter: ApplicationCommandInteraction,
+            token_type: Tokentype,
     ):
         """
         Brands the token from 1m_tokens/3m_tokens with stuff from config.json
         :param inter: Provided by discord, interaction
         :param token_type: Type of token stock to be branded, either 1m tokens or 3m tokens or all
         """
+        await inter.response.defer()
 
         tokens = []
         if token_type == "1m_token":
@@ -168,35 +171,79 @@ class Token(commands.Cog):
             file_names = ["1m_tokens.txt", "3m_tokens.txt"]
 
         for file_name in file_names:
-            with open(f"./input/{file_name}", "r") as file:
-                token_list = file.readlines()
-                for token in token_list:
-                    token = token.strip()
-                    parts = token.split(":")
-                    if len(parts) >= 3:  # mail:pass:token
-                        token = parts[-1]
-                    elif len(parts) == 1:  # token only
-                        token = parts[0]
-                    else:
-                        # Invalid token format, skipping
-                        continue
-                    
-                    if token:  # if token not empty string
-                        tokens.append(token)
+            try:
+                with open(f"./input/{file_name}", "r") as file:
+                    token_list = file.readlines()
+                    for token in token_list:
+                        token = token.strip()
+                        parts = token.split(":")
+                        if len(parts) >= 3:  # mail:pass:token
+                            token = parts[-1]
+                        elif len(parts) == 1:  # token only
+                            token = parts[0]
+                        else:
+                            # Invalid token format, skipping
+                            continue
 
-            for token in tokens:
-                headers = get_headers(token)
-                brand_bio, brand_displayname = await get_brandingdata()
-                
-                json_data = {
-                    "bio": brand_bio,
-                    "global_name": brand_displayname
-                }
+                        if token:  # if token not empty string
+                            tokens.append(token)
+            except FileNotFoundError:
+                await inter.followup.send(f"File `{file_name}` not found. Skipping...", ephemeral=True)
+                continue
 
-                async with aiohttp.ClientSession() as session:
-                    async with session.patch("https://discord.com/api/v9/users/%40me/profile", headers=headers, json=json_data) as response: # brand about me stuff
-                        if int(response.status) == 200:
-                            pass # successful, still needs to add a lot of stuff
+        if not tokens:
+            await inter.followup.send("No valid tokens found to process.", ephemeral=True)
+            return
+
+        success_count = 0
+        failed_tokens = []
+
+        for token in tokens:
+            headers = get_headers(token)
+            brand_bio, brand_displayname = await get_brandingdata()
+
+            json_data = {
+                "bio": brand_bio
+            }
+
+            # seperated because of not working
+            json_data2 = {
+                "global_name": brand_displayname
+            }
+            async with aiohttp.ClientSession() as session:
+                try:
+                    async with session.patch(
+                            "https://discord.com/api/v9/users/%40me/profile",
+                            headers=headers,
+                            json=json_data,
+                    ) as response:
+                        if response.status == 200:
+                            success_count += 1
+                        elif response.status == 401:
+                            failed_tokens.append((token, "Unauthorized (Invalid Token)"))
+                        elif response.status == 403:
+                            failed_tokens.append((token, "Forbidden (Token Might Be Locked)"))
+                        elif response.status == 429:
+                            retry_after = await response.json()
+                            await inter.followup.send(
+                                f"Rate-limited. Retrying after {retry_after['retry_after']} seconds...",
+                                ephemeral=True,
+                            )
+                            await asyncio.sleep(retry_after["retry_after"])
+                        else:
+                            error_details = await response.text()
+                            failed_tokens.append((token, f"HTTP {response.status}: {error_details}"))
+
+                except Exception as e:
+                    failed_tokens.append((token, f"Exception: {e}"))
+
+        # Summary of operation | ephemeral
+        summary = f"Branding completed: {success_count}/{len(tokens)} successful."
+        if failed_tokens:
+            summary += "\nFailed tokens:\n" + "\n".join(
+                [f"{token}: {reason}" for token, reason in failed_tokens]
+            )
+        await inter.followup.send(summary, ephemeral=True)
 
     @tokens.sub_command(name="send", description="Sends all available tokens to the owner in a .txt file")
     async def send(self, inter: ApplicationCommandInteraction):
