@@ -1,15 +1,15 @@
-import aiohttp
 import asyncio
 import datetime
-import disnake
-import json
 import os
 import random
 from typing import List, Dict, Optional, Tuple
 
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption 
+import aiohttp
+import disnake
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption
 from disnake.ext import commands
-from .misc import TokenTypeError, load_config
+
+from misc import TokenTypeError, load_config
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -74,7 +74,8 @@ class TokenManager:
         Loads a specified amount of tokens from a file.
 
         Args:
-            amount: The number of tokens to load.
+            :param amount: The number of tokens to load.
+            :param token_type: Type of the token (1m/3m).
 
         Returns:
             An error message if loading fails, or None if successful.
@@ -319,8 +320,9 @@ class TokenManager:
         Processes multiple tokens to join and boost a guild.
 
         Args:
-            guild_id: The ID of the guild to join and boost.
-            amount: The number of boosts required.
+            :param guild_id: The ID of the guild to join and boost.
+            :param amount: The number of boosts required.
+            :param token_type: Type of token (1m/3m).
 
         Returns:
             A list of error messages encountered during processing.

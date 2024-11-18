@@ -1,22 +1,19 @@
 import aiohttp
 import asyncio
 import base64
-import json
 import os
 import random
 import re
 import string
 import tls_client
 import zipfile
-
 from datetime import datetime
-
-from disnake import ModalInteraction, ui, TextInputStyle, SelectOption
-from disnake.ext import commands
-from .misc import TokenTypeError, load_config
 from typing import Dict, Any
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
+from disnake import ModalInteraction, ui, TextInputStyle, SelectOption
+from disnake.ext import commands
+from misc import TokenTypeError, load_config, get_headers
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -183,7 +180,7 @@ class Tokenmanager:
             } if proxy_ else None
             response = self.client.get(
                 url=f"https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
-                headers=self.get_headers(token=token),
+                headers=get_headers(token=token),
                 cookies=self.get_cookies(),
                 proxy=proxy
             )
@@ -264,7 +261,7 @@ class Tokenmanager:
 
         response = self.client.post(
             url='https://discord.com/api/v9/invites/{}'.format(invite_code),
-            headers=self.get_headers(token=token),
+            headers=get_headers(token=token),
             json=payload,
             cookies=self.get_cookies(),
             proxy=proxy

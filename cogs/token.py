@@ -1,13 +1,15 @@
-import aiohttp
 import datetime
-import disnake
 import json
 import os
+from typing import Tuple
 
+import aiohttp
+import disnake
 from disnake import ApplicationCommandInteraction, Option
 from disnake.ext import commands
-from .misc import TokenTypeError, get_headers
-from typing import Tuple
+
+from misc import get_headers
+
 
 class Token(commands.Cog):
     def __init__(self, bot):
