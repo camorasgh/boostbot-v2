@@ -6,7 +6,7 @@ import json
 import os
 from typing import Tuple
 
-from disnake import ApplicationCommandInteraction
+from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
 
 from .misc import get_headers
@@ -238,12 +238,25 @@ class Token(commands.Cog):
                     failed_tokens.append((token, f"Exception: {e}"))
 
         # Summary of operation | ephemeral
-        summary = f"Branding completed: {success_count}/{len(tokens)} successful."
+        embed = Embed(
+            title="Branding Operation Summary",
+            color=0x00FF00 if success_count == len(tokens) else 0xFF0000,  # Green if all succeeded, red otherwise
+            description=f"Branding completed: **{success_count}/{len(tokens)}** successful."
+        )
         if failed_tokens:
-            summary += "\nFailed tokens:\n" + "\n".join(
-                [f"{token}: {reason}" for token, reason in failed_tokens]
+            failed_tokens_list = "\n".join([f"• `{token}`: {reason}" for token, reason in failed_tokens])
+            embed.add_field(
+                name="Failed Tokens",
+                value=failed_tokens_list[:1024],  # Discord field value limit is 1024 characters
+                inline=False
             )
-        await inter.followup.send(summary, ephemeral=True)
+        else:
+            embed.add_field(
+                name="Failed Tokens",
+                value="None 🎉",
+                inline=False
+            )
+        await inter.followup.send(embed=embed, ephemeral=True)
 
     @tokens.sub_command(name="send", description="Sends all available tokens to the owner in a .txt file")
     async def send(self, inter: ApplicationCommandInteraction):
