@@ -19,11 +19,13 @@ async def load_config() -> Dict:
         return config
 
 
-def get_headers(token: str):
+def get_headers(token: str) -> Dict:
     """
     Construct the headers
     Args:
-    token [str]: The token used to construct the headers
+    :param token: The token used to construct the headers
+    Returns:
+        headers (dict)
     """
     # noinspection SpellCheckingInspection
     headers = {
