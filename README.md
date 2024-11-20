@@ -1,7 +1,10 @@
 # Vortex BoostBot
 made by borgo and redacted (borghettoo & suspectedesp)
 
-## Descritpion
+## Info
+Due to recent inconveniences I now thought that for this BoostBot for now there will be no sellix integration whatsoever
+
+## Description
 ... <!-- add desc here -->
 
 ## Features
