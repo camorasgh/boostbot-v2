@@ -431,6 +431,10 @@ class Tokenmanager:
         self.boost_results.clear()
         self.joined_count = 0
         self.not_joined_count = 0
+        config = await load_config()
+        logserver = self.bot.get_guild(config["logs_serverid"])
+        logchannel = logserver.get_channel(config["logs_channelid"])
+        await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
 
     async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
