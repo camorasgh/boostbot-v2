@@ -270,9 +270,8 @@ class Token(commands.Cog):
                             json=json_data,
                     ) as response:
                         response_text = await response.text()
-                        if response.status == 200:
-                            success_count += 1
-                        else:
+                        # no success +=1 bc of display name
+                        if response.status != 200:
                             failed_tokens.append((token, f"`BRANDING_BIO` | HTTP {response.status}: {response_text}"))
                 except aiohttp.ClientConnectionError as e:
                     failed_tokens.append((token, f"Connection Error: {str(e)}"))
@@ -290,7 +289,8 @@ class Token(commands.Cog):
                             proxy= prx.get_random_proxy(self.bot)
                     ) as response2:
                         response_text2 = await response2.text()
-                        if response2.status == 200:
+                        # if not both successful then no successful operation!!! ~ redacted 2k24
+                        if response2.status == 200 and response.status == 200:
                             success_count += 1
                         else:
                             failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))
