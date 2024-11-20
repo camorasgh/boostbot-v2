@@ -6,6 +6,9 @@
   "owner_ids": [1198320255206969427, 1086612851990470671],
   "brand_bio": "burger",
   "brand_displayname": "spaghetti",
-  "logs_serverid": 123,
-  "logs_channelid": 123
+  "logging": {
+    "enabled": true,
+    "server_id": 123,
+    "channel_id": 123
+  }
 }

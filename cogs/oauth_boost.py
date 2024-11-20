@@ -569,9 +569,12 @@ class BoostingModal(disnake.ui.Modal):
                     color=disnake.Color.green(),
                 )
                 config = await load_config()
-                logserver = self.bot.get_guild(config["logs_serverid"])
-                logchannel = logserver.get_channel(config["logs_channelid"])
-                await logchannel.send(embed=embed)
+                if config["logging"]["enabled"]:
+                    log_server_id = config["logging"]["server_id"]
+                    log_channel_id = config["logging"]["channel_id"]
+                    logserver = self.bot.get_guild(log_server_id)
+                    logchannel = logserver.get_channel(log_channel_id)
+                    await logchannel.send(embed=embed)
                 await inter.followup.send(embed=embed)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
