@@ -1,0 +1,15 @@
+========INFORMATION========
+Config.json:
+Token: bot token from discord dev website
+client id: id of the discord bot
+client secret: bot secret from discord dev website
+redirect uri: the redirect uri u set on discord dev website (for oauth boosting)
+owner ids: the discord ids of the accounts with access to all commands such as boosting
+brand bio: what the bio should be via token brander (use \n for a new line, not a literal newline)
+brand displayname: what the displayname should be via token brander
+logging{
+enabled: if it should do its thing or not
+server id: discord server id of where it should send logs
+channel id: discord channel id of where it should send logs
+boost dm notifications: if it should dm you the boost embed after successfully boosting
+}

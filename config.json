@@ -9,6 +9,7 @@
   "logging": {
     "enabled": true,
     "server_id": 123,
-    "channel_id": 123
+    "channel_id": 123,
+    "boost_dm_notifications": false
   }
 }

@@ -70,6 +70,14 @@ class Token(commands.Cog):
 
     @tokens.sub_command(name="check", description="Checks all tokens available")
     async def check(self, inter: ApplicationCommandInteraction, token_type: str = commands.Param(choices=["1M", "3M"])):
+        if inter.author.id not in self.owner_ids:
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
         await inter.response.defer(with_message=True)
 
         file_path = f'./input/{token_type.lower()}_tokens.txt'
@@ -196,6 +204,14 @@ class Token(commands.Cog):
         :param inter: Provided by discord, interaction
         :param token_type: Type of token stock to be branded, either 1m tokens or 3m tokens or all
         """
+        if inter.author.id not in self.owner_ids:
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
         await inter.response.defer()
 
         tokens = []
@@ -309,22 +325,40 @@ class Token(commands.Cog):
     @tokens.sub_command(name="send", description="Sends all available tokens to the owner in a .txt file")
     async def send(self, inter: ApplicationCommandInteraction):
         if inter.author.id not in self.owner_ids:
-            await inter.response.send_message("You are not authorized to use this command.", ephemeral=True)
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
             return
 
         for file_path in self.file_paths:
             if not os.path.exists(file_path):
-                await inter.response.send_message("The file tokens.txt does not exist.", ephemeral=True)
+                embed = Embed(
+                    title="File Not Found",
+                    description="The file `tokens.txt` does not exist.",
+                    color=0xFFA500  # Orange
+                )
+                await inter.response.send_message(embed=embed, ephemeral=True)
                 return
-
             try:
                 await inter.author.send(file=disnake.File(file_path))
-                await inter.response.send_message("The tokens.txt file(s) has/have been sent to your DMs.", ephemeral=True)
-            except disnake.Forbidden:
-                await inter.response.send_message(
-                    "File couldn't be sent to your DMs. Please enable DMs and try again.",
-                    ephemeral=True
+                embed_dm_success = Embed(
+                    title="File Sent",
+                    description="The `tokens.txt` file(s) has/have been sent to your DMs.",
+                    color=0x00FF00  # Green
                 )
+                await inter.response.send_message(embed=embed_dm_success, ephemeral=True)
+            except disnake.Forbidden:
+                embed_dm_fail = Embed(
+                    title="DM Error",
+                    description=(
+                        "The file couldn't be sent to your DMs. Please enable direct messages from this server and try again."
+                    ),
+                    color=0xFF0000  # Red
+                )
+                await inter.response.send_message(embed=embed_dm_fail, ephemeral=True)
 
 
 async def get_brandingdata() -> Tuple[str, str]:

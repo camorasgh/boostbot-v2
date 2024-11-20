@@ -569,6 +569,8 @@ class BoostingModal(disnake.ui.Modal):
                     color=disnake.Color.green(),
                 )
                 config = await load_config()
+                if config["logging"]["boost_dm_notifications"]:
+                    await inter.author.send(embed=embed)
                 if config["logging"]["enabled"]:
                     log_server_id = config["logging"]["server_id"]
                     log_channel_id = config["logging"]["channel_id"]
