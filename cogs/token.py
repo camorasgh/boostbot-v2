@@ -4,7 +4,8 @@ import datetime
 import disnake
 import json
 import os
-from typing import Tuple
+import random
+from typing import Tuple, Any
 
 from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
@@ -16,6 +17,41 @@ Tokentype = commands.option_enum({
     "3M Token": "3m_token",
     "All": "all",
 })
+
+class Proxies:
+    def __init__(self):
+        self.proxies = []
+
+    async def load_proxies(self, bot) -> None:
+        try:
+            with open("./input/proxies.txt", "r") as file:
+                self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
+            bot.logger.info(f"Loaded {len(self.proxies)} proxies")
+        except FileNotFoundError:
+            bot.logger.error("proxies.txt file not found.")
+        except Exception as e:
+            bot.logger.error(f"Error loading proxies: {str(e)}")
+
+
+    @staticmethod
+    async def format_proxy(proxy: str) -> str:
+        """
+        Formats provided proxy
+        :param proxy:
+        :return: formatted proxy
+        """
+        if '@' in proxy:
+            auth, ip_port = proxy.split('@')
+            return f"{auth}@{ip_port}"
+        return f"{proxy}"
+
+
+    async def get_random_proxy(self, bot) -> Any | None:
+        """Return a random proxy from the loaded list, or None if no proxies are available."""
+        await self.load_proxies(bot)
+        if self.proxies:
+            return random.choice(self.proxies)
+        return None
 
 
 class Token(commands.Cog):
@@ -217,25 +253,37 @@ class Token(commands.Cog):
                             headers=headers,
                             json=json_data,
                     ) as response:
+                        response_text = await response.text()
                         if response.status == 200:
                             success_count += 1
-                        elif response.status == 401:
-                            failed_tokens.append((token, "Unauthorized (Invalid Token)"))
-                        elif response.status == 403:
-                            failed_tokens.append((token, "Forbidden (Token Might Be Locked)"))
-                        elif response.status == 429:
-                            retry_after = await response.json()
-                            await inter.followup.send(
-                                f"Rate-limited. Retrying after {retry_after['retry_after']} seconds...",
-                                ephemeral=True,
-                            )
-                            await asyncio.sleep(retry_after["retry_after"])
                         else:
-                            error_details = await response.text()
-                            failed_tokens.append((token, f"HTTP {response.status}: {error_details}"))
-
+                            failed_tokens.append((token, f"`BRANDING_BIO` | HTTP {response.status}: {response_text}"))
+                except aiohttp.ClientConnectionError as e:
+                    failed_tokens.append((token, f"Connection Error: {str(e)}"))
+                except asyncio.TimeoutError:
+                    failed_tokens.append((token, "Request Timeout"))
                 except Exception as e:
-                    failed_tokens.append((token, f"Exception: {e}"))
+                    failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
+
+                try:
+                    prx = Proxies()
+                    async with session.patch(
+                            "https://discord.com/api/v9/users/@me",
+                            headers=headers,
+                            json=json_data2,
+                            proxy= prx.get_random_proxy(self.bot)
+                    ) as response2:
+                        response_text2 = await response2.text()
+                        if response2.status == 200:
+                            success_count += 1
+                        else:
+                            failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))
+                except aiohttp.ClientConnectionError as e:
+                    failed_tokens.append((token, f"Connection Error: {str(e)}"))
+                except asyncio.TimeoutError:
+                    failed_tokens.append((token, "Request Timeout"))
+                except Exception as e:
+                    failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
 
         # Summary of operation | ephemeral
         embed = Embed(
