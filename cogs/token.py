@@ -286,7 +286,7 @@ class Token(commands.Cog):
                             "https://discord.com/api/v9/users/@me",
                             headers=headers,
                             json=json_data2,
-                            proxy= prx.get_random_proxy(self.bot)
+                            proxy= await prx.get_random_proxy(self.bot)
                     ) as response2:
                         response_text2 = await response2.text()
                         # if not both successful then no successful operation!!! ~ redacted 2k24
