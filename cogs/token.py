@@ -197,7 +197,8 @@ class Token(commands.Cog):
     async def brand_token(
             self,
             inter: ApplicationCommandInteraction,
-            token_type: Tokentype,
+            token_type: Tokentype, # type: ignore
+            guild_id: int
     ):
         """
         Brands the token from 1m_tokens/3m_tokens with stuff from config.json
@@ -260,12 +261,12 @@ class Token(commands.Cog):
 
             # seperated because of not working
             json_data2 = {
-                "global_name": brand_displayname
+                "nick": brand_displayname
             }
             async with aiohttp.ClientSession() as session:
                 try:
                     async with session.patch(
-                            "https://discord.com/api/v9/users/%40me/profile",
+                            f"https://discord.com/api/v9/guilds/{guild_id}/members/@me",
                             headers=headers,
                             json=json_data,
                     ) as response:
