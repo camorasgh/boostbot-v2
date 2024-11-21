@@ -198,7 +198,7 @@ class Token(commands.Cog):
             self,
             inter: ApplicationCommandInteraction,
             token_type: Tokentype, # type: ignore
-            guild_id: int
+            guild_id: str
     ):
         """
         Brands the token from 1m_tokens/3m_tokens with stuff from config.json
@@ -215,6 +215,10 @@ class Token(commands.Cog):
             return
         await inter.response.defer()
 
+        try:
+            guild_id = int(guild_id)
+        except ValueError:
+            await inter.followup.send("`ERR_INVALID_INT` couldn't convert Guild ID to an Integer.")
         tokens = []
         if token_type == "1m_token":
             file_names = ["1m_tokens.txt"]
@@ -241,7 +245,7 @@ class Token(commands.Cog):
                         if token:  # if token not empty string
                             tokens.append(token)
             except FileNotFoundError:
-                await inter.followup.send(f"File `{file_name}` not found. Skipping...", ephemeral=True)
+                await inter.followup.send(f"`ERR_FILE_NOT_FOUND` File `{file_name}` not found. Skipping...", ephemeral=True)
                 continue
 
         if not tokens:
@@ -266,7 +270,7 @@ class Token(commands.Cog):
             async with aiohttp.ClientSession() as session:
                 try:
                     async with session.patch(
-                            f"https://discord.com/api/v9/guilds/{guild_id}/members/@me",
+                            f"https://discord.com/api/v9/users/%40me/profile",
                             headers=headers,
                             json=json_data,
                     ) as response:
@@ -284,7 +288,7 @@ class Token(commands.Cog):
                 try:
                     prx = Proxies()
                     async with session.patch(
-                            "https://discord.com/api/v9/users/@me",
+                            "https://discord.com/api/v9/guilds/{guild_id}/members/@me",
                             headers=headers,
                             json=json_data2,
                             proxy= await prx.get_random_proxy(self.bot)
@@ -293,6 +297,8 @@ class Token(commands.Cog):
                         # if not both successful then no successful operation!!! ~ redacted 2k24
                         if response2.status == 200 and response.status == 200:
                             success_count += 1
+                        elif response2.status == 404:
+                            failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))                            
                         else:
                             failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))
                 except aiohttp.ClientConnectionError as e:
@@ -309,7 +315,8 @@ class Token(commands.Cog):
             description=f"Branding completed: **{success_count}/{len(tokens)}** successful."
         )
         if failed_tokens:
-            failed_tokens_list = "\n".join([f"• `{token}`: {reason}" for token, reason in failed_tokens])
+            #token.split('.')[0] means token until first dot
+            failed_tokens_list = "\n".join([f"• `{token.split('.')[0]}`: {reason}" for token, reason in failed_tokens])
             embed.add_field(
                 name="Failed Tokens",
                 value=failed_tokens_list[:1024],  # Discord field value limit is 1024 characters
