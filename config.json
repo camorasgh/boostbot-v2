@@ -3,7 +3,7 @@
   "client_id": "1297982438470975559",
   "client_secret": "Ls-JhztrEYQLRMyyXPbMEtNgeB9TNxRf",
   "redirect_uri": "http://localhost:5000/callback",
-  "owner_ids": [1198320255206969427, 1086612851990470671],
+  "owner_ids": [1198320255206969427, 1086612851990470671, 768021400408555544],
   "brand_bio": "burger",
   "brand_displayname": "spaghetti",
   "logging": {
