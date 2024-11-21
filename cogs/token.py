@@ -10,7 +10,7 @@ from typing import Tuple, Any
 from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
 
-from ..core.misc_boosting import get_headers
+from core.misc_boosting import get_headers
 
 Tokentype = commands.option_enum({
     "1M Token": "1m_token",

@@ -9,7 +9,7 @@ import disnake
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption
 from disnake.ext import commands
 
-from ..core.misc_boosting import TokenTypeError, load_config
+from core.misc_boosting import TokenTypeError, load_config
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
