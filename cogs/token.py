@@ -218,7 +218,7 @@ class Token(commands.Cog):
         try:
             guild_id = int(guild_id)
         except ValueError:
-            await inter.followup.send("`ERR_INVALID_INT` couldn't convert Guild ID to an Integer.")
+            return await inter.followup.send("`ERR_INVALID_INT` couldn't convert Guild ID to an Integer.")
         tokens = []
         if token_type == "1m_token":
             file_names = ["1m_tokens.txt"]
