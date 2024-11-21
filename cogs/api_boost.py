@@ -519,7 +519,7 @@ class BoostingModal(ui.Modal):
 
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
-            await interaction.followup.send("An error occurred while boosting.", ephemeral=True)
+            await interaction.followup.send("`ERR_UNKNOWN_EXCEPTION` An error occurred while boosting.", ephemeral=True)
 
 
 
@@ -548,7 +548,7 @@ class JoinBoost(commands.Cog):
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
-            await inter.response.send_message("An error occurred while preparing the boost modal.", ephemeral=True)
+            await inter.response.send_message("`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
 
 
 def setup(bot: commands.InteractionBot):
