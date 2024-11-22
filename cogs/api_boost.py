@@ -491,14 +491,14 @@ class BoostingModal(ui.Modal):
                 min_length=1,
                 max_length=2
             ),
-            ui.Select(
-                placeholder="Choose Token Type",
-                options=[
-                    SelectOption(label="1 Month", value="1m"),
-                    SelectOption(label="3 Months", value="3m")
-                ],
+            ui.TextInput(
+                label="Token Type (1m for 1 Month, 3m for 3 Months)",
+                placeholder="Enter '1m' or '3m'",
                 custom_id="boosting.token_type",
-            )
+                style=TextInputStyle.short,
+                min_length=2,
+                max_length=2,
+            ),
         ]
         super().__init__(title="Join Booster", components=components)
 
@@ -507,7 +507,7 @@ class BoostingModal(ui.Modal):
         try:
             guild_invite = interaction.text_values['boosting.guild_invite']
             amount = int(interaction.text_values['boosting.amount'])
-            token_type = interaction.data['components'][2]['value']
+            token_type = interaction.text_values['boosting.token_type']
 
             if amount % 2 != 0:
                 await interaction.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
