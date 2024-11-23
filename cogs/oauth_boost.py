@@ -2,9 +2,9 @@ import asyncio
 import datetime
 import os
 import random
+import tls_client
 from typing import List, Dict, Optional, Tuple
 
-import aiohttp
 import disnake
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption
 from disnake.ext import commands
@@ -68,6 +68,10 @@ class TokenManager:
         self.failed_proxies: set = set()
         self.counter = JoinBoostCounter()
         self.authorized_users: Dict[str, Dict[str, str]] = {}
+        self.client = tls_client.Session(
+            client_identifier="chrome112", # type: ignore
+            random_tls_extension_order=True
+        )
 
     async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
         """
@@ -180,17 +184,19 @@ class TokenManager:
                 "Content-Type": "application/json",
             }
             data = {"access_token": access_token}
-            async with aiohttp.ClientSession() as session:
-                async with session.put(url=join_url, headers=headers, json=data) as response:
-                    if response.status in (201, 204):
-                        self.bot.logger.success(f"Successfully added user: {user_id}")
-                        self.counter.increment_joins(token)
-                        return None
-                    else:
-                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to add user: {user_id}. Status code: {response.status}")
-                        self.counter.increment_failed_joins(token)
-                        return f"Failed to join user: {user_id}, Status: {response.status}"
-        except aiohttp.ClientError as e:
+
+            response = self.client.put(url=join_url, headers=headers, json=data)
+
+            if response.status_code in (201, 204):
+                self.bot.logger.success(f"Successfully added user: {user_id}")
+                self.counter.increment_joins(token)
+                return None
+            else:
+                self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to add user: {user_id}. Status code: {response.status_code}")
+                self.counter.increment_failed_joins(token)
+                return f"Failed to join user: {user_id}, Status: {response.status_code}"
+
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while adding user {user_id}: {str(e)}")
             self.counter.increment_failed_joins(token)
             return f"Network error joining user: {user_id}"
@@ -198,6 +204,7 @@ class TokenManager:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error joining guild for user {user_id}: {str(e)}")
             self.counter.increment_failed_joins(token)
             return f"Error joining user: {user_id}"
+
 
     async def _put_boost(self, token: str, guild_id: str) -> Optional[str]:
         """
@@ -212,30 +219,47 @@ class TokenManager:
         """
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
-            boost_ids = await self.__get_boost_data(token=token)
+            boost_ids = self.__get_boost_data(token=token)
             if not boost_ids:
                 self.counter.increment_failed_boosts(token)
                 return f"No boost IDs available for token: {token[:10]}..."
 
             boosted = False
             errors = []
+
             for boost_id in boost_ids:
                 payload = {"user_premium_guild_subscription_slot_ids": [int(boost_id)]}
                 headers = {"Authorization": token}
-                async with aiohttp.ClientSession() as session: 
-                    proxies = self.get_proxy()
-                    session.proxies = proxies
-                    async with session.put(url=url, headers=headers, json=payload) as r:
-                        if r.status == 201:
-                            self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
-                            self.counter.increment_boosts(token)
-                            boosted = True
-                            
-                        else:
-                            response_json = await r.json()
-                            self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
-                            self.counter.increment_failed_boosts(token)
-                            errors.append(f"Failed to boost token: {token[:10]}, Response: {response_json}")
+
+                try:
+                    proxy = self.get_proxy()
+                    response = self.client.put(
+                        url=url,
+                        headers=headers,
+                        json=payload,
+                        proxies={"http": proxy, "https": proxy} if proxy else None,
+                    )
+
+                    if response.status_code == 201:
+                        self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
+                        self.counter.increment_boosts(token)
+                        boosted = True
+                    else:
+                        response_json = response.json()
+                        self.bot.logger.error(
+                            f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}"
+                        )
+                        self.counter.increment_failed_boosts(token)
+                        errors.append(f"Failed to boost token: {token[:10]}, Response: {response_json}")
+                except tls_client.exceptions.TlsClientException as e:
+                    self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
+                    self.counter.increment_failed_boosts(token)
+                    errors.append(f"Network error boosting token: {token[:10]}")
+                except Exception as e:
+                    self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error boosting with token {token[:10]}: {str(e)}")
+                    self.counter.increment_failed_boosts(token)
+                    errors.append(f"Error boosting token: {token[:10]}")
+
             if errors:
                 return "\n".join(errors)
 
@@ -243,7 +267,8 @@ class TokenManager:
                 self.counter.increment_failed_boosts(token)
                 return f"Boosting failed for token: {token[:10]}"
             return None
-        except aiohttp.ClientError as e:
+
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             self.counter.increment_failed_boosts(token)
             return f"Network error boosting token: {token[:10]}"
@@ -252,7 +277,7 @@ class TokenManager:
             self.counter.increment_failed_boosts(token)
             return f"Error boosting token: {token[:10]}"
 
-    async def __get_boost_data(self, token: str) -> Optional[List[str] | Tuple[None, None]]:
+    async def __get_boost_data(self, token: str) -> Optional[List[str]]:
         """
         Retrieves boost slot IDs for the given token.
 
@@ -264,24 +289,30 @@ class TokenManager:
         """
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
         try:
-            async with aiohttp.ClientSession() as session:
-                session.proxies = self.get_proxy() 
-                headers = {"Authorization": token}
-                async with session.get(url=url, headers=headers) as r:
-                    if r.status == 200:
-                        data = await r.json()
-                        if len(data) > 0:
-                            boost_ids = [boost['id'] for boost in data]
-                            return boost_ids
-                    else:
-                        self.bot.logger.error(f'Unexpected status code {r.status} for token {token[:10]}...')
-                return None, None
-        except aiohttp.ClientError as e:
+            proxy = self.get_proxy()
+            headers = {"Authorization": token}
+
+            response = self.client.get(
+                url=url,
+                headers=headers,
+                proxies={"http": proxy, "https": proxy} if proxy else None,
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    boost_ids = [boost["id"] for boost in data]
+                    return boost_ids
+            else:
+                self.bot.logger.error(f"Unexpected status code {response.status_code} for token {token[:10]}...")
+            return None
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"Network error while retrieving boost data: {str(e)}")
-            return None, None
+            return None
         except Exception as e:
             self.bot.logger.error(f"Error retrieving boost data: {str(e)}")
-            return None, None
+            return None
+
 
     async def process_single_token(self, token: str, guild_id: str) -> List[str]:
         """
@@ -354,63 +385,72 @@ class TokenManager:
         """
         try:
             login_url = f"https://discord.com/api/v9/oauth2/authorize?client_id={self.bot.config['client_id']}&response_type=code&redirect_uri={self.bot.config['redirect_uri']}&scope=identify%20guilds.join"
-            async with aiohttp.ClientSession() as session:
-                session.proxies = self.get_proxy()
-                await session.get(login_url)
-                headers = {
-                    "Authorization": f"{token}",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
-                    "Content-Type": "application/json",
-                    "Origin": "https://canary.discord.com",
-                    "X-Discord-Locale": "en-US",
-                    "X-Discord-Timezone": "Europe/Vienna"
+            proxy = self.get_proxy()
+            response = self.client.get(login_url, proxies={"http": proxy, "https": proxy} if proxy else None)
+            
+            if response.status_code != 200:
+                self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to request login URL for token {token[:10]}...")
+                return None
+
+            headers = {
+                "Authorization": token,
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:130.0) Gecko/20100101 Firefox/130.0",
+                "Content-Type": "application/json",
+                "Origin": "https://canary.discord.com",
+                "X-Discord-Locale": "en-US",
+                "X-Discord-Timezone": "Europe/Vienna"
+            }
+
+            payload = {
+                "permissions": "0",
+                "authorize": True,
+                "integration_type": 0,
+                "location_context": {
+                    "guild_id": guild_id,
+                    "channel_id": "10000",  # Example placeholder
+                    "channel_type": 10000  # Example placeholder
                 }
-                payload = {
-                    "permissions": "0",
-                    "authorize": True,
-                    "integration_type": 0,
-                    "location_context": {
-                        "guild_id": guild_id,
-                        "channel_id": "10000",  # Example placeholder
-                        "channel_type": 10000  # Example placeholder
-                    }
-                }
-                async with session.post(url=login_url, json=payload, headers=headers) as r:
-                    if r.status == 200:
-                        data = await r.json()
-                        location_url = data.get("location")
-                        if "https://discord.com/oauth2/error?" in location_url:
-                            error = location_url.split("error=")[1].split("&")[0]
-                            error_description = location_url.split("error_description=")[1].split("&")[0]
-                            self.bot.logger.error(f"Oauth Error: {token[:10]}... error: {error} description: {error_description}")
-                            return None
-                        if location_url and "code=" in location_url:
-                            code = location_url.split("code=")[1].split("&")[0]
-                            access_token, _ = await self._do_exchange(code, session)
-                            user_data = await self.get_user_data(access_token, session)
-                            user_data['access_token'] = access_token
-                            self.bot.logger.success(f"Authorized: {token[:10]}...")
-                            return user_data
-                        else:
-                            self.bot.logger.error(f"`ERR_UNHANDLED_RESPONSE` Failed to authorize token {token[:10]}...")
-                            return None
-                    else:
-                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to authorize token {token[:10]}... Status: {r.status}, Body: {await r.text()}")
-                        return None
-        except aiohttp.ClientError as e:
+            }
+            response = self.client.post(login_url, json=payload, headers=headers, proxies={"http": proxy, "https": proxy} if proxy else None)
+            
+            if response.status_code == 200:
+                data = response.json()
+                location_url = data.get("location")
+                
+                if "https://discord.com/oauth2/error?" in location_url:
+                    error = location_url.split("error=")[1].split("&")[0]
+                    error_description = location_url.split("error_description=")[1].split("&")[0]
+                    self.bot.logger.error(f"Oauth Error: {token[:10]}... error: {error} description: {error_description}")
+                    return None
+
+                if location_url and "code=" in location_url:
+                    code = location_url.split("code=")[1].split("&")[0]
+                    access_token, _ = self._do_exchange(code, self.client)
+                    user_data = self.get_user_data(access_token, self.client)
+                    user_data['access_token'] = access_token
+                    self.bot.logger.success(f"Authorized: {token[:10]}...")
+                    return user_data
+                else:
+                    self.bot.logger.error(f"`ERR_UNHANDLED_RESPONSE` Failed to authorize token {token[:10]}...")
+                    return None
+            else:
+                self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to authorize token {token[:10]}... Status: {response.status_code}, Body: {response.text}")
+                return None
+
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during token authorization for {token[:10]}: {str(e)}")
             return None
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error authorizing token {token[:10]}: {str(e)}")
             return None
 
-    async def _do_exchange(self, code: str, session: aiohttp.ClientSession) -> Tuple[Optional[str], Optional[str]]:
+    async def _do_exchange(self, code: str, session: tls_client.Session) -> Tuple[Optional[str], Optional[str]]:
         """
         Exchanges an authorization code for an access token and refresh token.
 
         Args:
             code: The authorization code received from Discord.
-            session: The active aiohttp session.
+            session: The active tls_client session.
 
         Returns:
             A tuple containing the access and refresh tokens or None.
@@ -426,23 +466,25 @@ class TokenManager:
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         try:
-            async with session.post(url=oauth_url, data=payload, headers=headers) as r:
-                data = await r.json()
+            response = session.post(oauth_url, data=payload, headers=headers, proxies={"http": self.get_proxy(), "https": self.get_proxy()})
+            data = response.json()
+
             return data.get("access_token"), data.get("refresh_token")
-        except aiohttp.ClientError as e:
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to exchange code for token: {str(e)}")
             return None, None
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error exchanging code for token: {str(e)}")
             return None, None
 
-    async def get_user_data(self, access_token: str, session: aiohttp.ClientSession) -> Optional[Dict[str, str]]:
+
+    async def get_user_data(self, access_token: str, session: tls_client.Session) -> Optional[Dict[str, str]]:
         """
         Retrieves user data using the access token.
 
         Args:
             access_token: The access token to authorize the request.
-            session: The active aiohttp session.
+            session: The active tls_client session.
 
         Returns:
             A dictionary of user data if successful, or None.
@@ -450,14 +492,15 @@ class TokenManager:
         users_url = "https://discord.com/api/v10/users/@me"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
-            async with session.get(users_url, headers=headers) as r:
-                return await r.json()
-        except aiohttp.ClientError as e:
+            response = session.get(users_url, headers=headers, proxies={"http": self.get_proxy(), "https": self.get_proxy()})
+            return response.json()
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to get user data: {str(e)}")
             return None
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error getting user data: {str(e)}")
             return None
+
 
     def save_results(self, guild_id: str, amount: int) -> None:
         """
