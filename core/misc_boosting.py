@@ -1,6 +1,7 @@
 import json
+import random
 
-from typing import Dict
+from typing import Any, Dict
 
 
 class TokenTypeError(Exception):
@@ -49,3 +50,36 @@ def get_headers(token: str) -> Dict:
         'x-super-properties': 'eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwic3lzdGVtX2xvY2FsZSI6Iml0LUlUIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzExMi4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTEyLjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVmZXJyZXIiOiIiLCJyZWZlcnJpbmdfZG9tYWluIjoiIiwicmVmZXJyZXJfY3VycmVudCI6IiIsInJlZmVycmluZ19kb21haW5fY3VycmVudCI6IiIsInJlbGVhc2VfY2hhbm5lbCI6InN0YWJsZSIsImNsaWVudF9idWlsZF9udW1iZXIiOjE5MzkwNiwiY2xpZW50X2V2ZW50X3NvdXJjZSI6bnVsbCwiZGVzaWduX2lkIjowfQ==',
     }
     return headers # "hardcoded things cuz IDK but it works godly" ~ borgo 2k24
+
+class Proxies:
+    def __init__(self):
+        self.proxies = []
+
+    async def load_proxies(self, bot) -> None:
+        try:
+            with open("./input/proxies.txt", "r") as file:
+                self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
+            bot.logger.info(f"Loaded {len(self.proxies)} proxies")
+        except FileNotFoundError:
+            bot.logger.error("proxies.txt file not found.")
+        except Exception as e:
+            bot.logger.error(f"Error loading proxies: {str(e)}")
+
+    @staticmethod
+    async def format_proxy(proxy: str) -> str:
+        """
+        Formats provided proxy
+        :param proxy:
+        :return: formatted proxy
+        """
+        if '@' in proxy:
+            auth, ip_port = proxy.split('@')
+            return f"{auth}@{ip_port}"
+        return f"{proxy}"
+
+    async def get_random_proxy(self, bot) -> Any | None:
+        """Return a random proxy from the loaded list, or None if no proxies are available."""
+        await self.load_proxies(bot)
+        if self.proxies:
+            return random.choice(self.proxies)
+        return None

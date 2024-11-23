@@ -10,48 +10,13 @@ from typing import Tuple, Any
 from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
 
-from core.misc_boosting import get_headers
+from core.misc_boosting import get_headers, Proxies
 
 Tokentype = commands.option_enum({
     "1M Token": "1m_token",
     "3M Token": "3m_token",
     "All": "all",
 })
-
-class Proxies:
-    def __init__(self):
-        self.proxies = []
-
-    async def load_proxies(self, bot) -> None:
-        try:
-            with open("./input/proxies.txt", "r") as file:
-                self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
-            bot.logger.info(f"Loaded {len(self.proxies)} proxies")
-        except FileNotFoundError:
-            bot.logger.error("proxies.txt file not found.")
-        except Exception as e:
-            bot.logger.error(f"Error loading proxies: {str(e)}")
-
-
-    @staticmethod
-    async def format_proxy(proxy: str) -> str:
-        """
-        Formats provided proxy
-        :param proxy:
-        :return: formatted proxy
-        """
-        if '@' in proxy:
-            auth, ip_port = proxy.split('@')
-            return f"{auth}@{ip_port}"
-        return f"{proxy}"
-
-
-    async def get_random_proxy(self, bot) -> Any | None:
-        """Return a random proxy from the loaded list, or None if no proxies are available."""
-        await self.load_proxies(bot)
-        if self.proxies:
-            return random.choice(self.proxies)
-        return None
 
 
 class Token(commands.Cog):

@@ -12,7 +12,7 @@ from typing import Dict, Any
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
 from disnake.ext import commands
-from core.misc_boosting import TokenTypeError, load_config, get_headers
+from core.misc_boosting import TokenTypeError, load_config, get_headers, Proxies
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -20,8 +20,6 @@ DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 
 
 class Filemanager:
-    def __init__(self):
-        self.proxies = []
 
     @staticmethod
     async def load_tokens(amount : int, token_type : str):
@@ -67,36 +65,6 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
-
-    
-    async def load_proxies(self, bot) -> None:
-        try:
-            with open("./input/proxies.txt", "r") as file:
-                self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
-            bot.logger.info(f"Loaded {len(self.proxies)} proxies")
-        except FileNotFoundError:
-            bot.logger.error("proxies.txt file not found.")
-        except Exception as e:
-            bot.logger.error(f"Error loading proxies: {str(e)}")
-
-    @staticmethod
-    async def format_proxy(proxy: str) -> str:
-        """
-        Formats provided proxy
-        :param proxy:
-        :return: formatted proxy
-        """
-        if '@' in proxy:
-            auth, ip_port = proxy.split('@')
-            return f"{auth}@{ip_port}"
-        return f"{proxy}"
-
-    async def get_random_proxy(self, bot) -> Any | None:
-        """Return a random proxy from the loaded list, or None if no proxies are available."""
-        await self.load_proxies(bot)
-        if self.proxies:
-            return random.choice(self.proxies)
-        return None
 
 ## ATTENTION NEXT 2 FUNCTIONS MAY CAUSE IMMEDIATE DEATH ONCE SEEN
     def write_joined_token(self, token, invite_code, success=True):
@@ -155,7 +123,7 @@ class Tokenmanager:
         )
         self.join_results: Dict[str, bool] = {}
         self.boost_results: Dict[str, bool] = {}
-        self.filemanager = Filemanager()
+        self.Proxies = Proxies()
         self.joined_count = 0
         self.not_joined_count = 0
 
@@ -389,7 +357,8 @@ class Tokenmanager:
         :return:
         """
         try:
-            selected_proxy = await self.filemanager.get_random_proxy(self.bot)
+            
+            selected_proxy = await self.Proxies.get_random_proxy(self.bot)
             user_id = str(await self.get_userid(token=token))
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:

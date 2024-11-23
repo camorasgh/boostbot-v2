@@ -9,7 +9,7 @@ import disnake
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, SelectOption
 from disnake.ext import commands
 
-from core.misc_boosting import TokenTypeError, load_config
+from core.misc_boosting import TokenTypeError, load_config, Proxies
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -64,14 +64,13 @@ class TokenManager:
         """
         self.bot = bot
         self.tokens: List[str] = []
-        self.proxies: List[str] = []
-        self.failed_proxies: set = set()
         self.counter = JoinBoostCounter()
         self.authorized_users: Dict[str, Dict[str, str]] = {}
         self.client = tls_client.Session(
             client_identifier="chrome112", # type: ignore
             random_tls_extension_order=True
         )
+        self.Proxies = Proxies()
 
     async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
         """
@@ -111,58 +110,6 @@ class TokenManager:
             return "`ERR_FILE_NOT_FOUND` tokens.txt file not found."
         except Exception as e:
             return f"`ERR_UNKNOWN_EXCEPTION` Error loading tokens: {str(e)}"
-
-    async def load_proxies(self) -> Optional[str]:
-        """
-        Loads proxies from a file and formats them.
-
-        Returns:
-            An error message if loading fails, or None if successful.
-        """
-        try:
-            with open("input/proxies.txt", "r") as file:
-                self.proxies = [self.format_proxy(line.strip()) for line in file if line.strip()]
-            self.bot.logger.info(f"Loaded {len(self.proxies)} proxies")
-            return None
-        except FileNotFoundError:
-            return "`ERR_FILE_NOT_FOUND` proxies.txt file not found."
-        except Exception as e:
-            return f"`ERR_UNKNOWN_EXCEPTION` Error loading proxies: {str(e)}"
-
-    @staticmethod
-    def format_proxy(proxy: str) -> str:
-        """
-        Formats a proxy string with or without authentication.
-
-        Args:
-            proxy: The raw proxy string.
-
-        Returns:
-            A formatted proxy URL.
-        """
-        try:
-            if '@' in proxy:
-                auth, ip_port = proxy.split('@')
-                # noinspection HttpUrlsUsage
-                return f"http://{auth}@{ip_port}"
-            # noinspection HttpUrlsUsage
-            return f"http://{proxy}"
-        except Exception as e:
-            return f"`ERR_PROXY_FORMATTING` Error formatting proxy: {str(e)}"
-
-    def get_proxy(self) -> Optional[Dict[str, str] | Dict[str, None]]:
-        """
-        Retrieves a random available proxy.
-
-        Returns:
-            A dictionary with HTTP and HTTPS proxy URLs or None if no proxies are available.
-        """
-        available_proxies = [p for p in self.proxies if p not in self.failed_proxies]
-        if not available_proxies:
-            self.bot.logger.info("Not enough proxies available. Using no proxy.")
-            return {"http": None, "https": None}
-        proxy = random.choice(available_proxies)
-        return {"http": proxy, "https": proxy}
 
     async def join_guild(self, user_id: str, access_token: str, guild_id: str, token: str) -> Optional[str]:
         """
@@ -232,7 +179,7 @@ class TokenManager:
                 headers = {"Authorization": token}
 
                 try:
-                    proxy = self.get_proxy()
+                    proxy = await self.Proxies.get_random_proxy(self.bot)()
                     response = self.client.put(
                         url=url,
                         headers=headers,
@@ -289,7 +236,7 @@ class TokenManager:
         """
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
         try:
-            proxy = self.get_proxy()
+            proxy = await self.Proxies.get_random_proxy(self.bot)()
             headers = {"Authorization": token}
 
             response = self.client.get(
@@ -385,7 +332,7 @@ class TokenManager:
         """
         try:
             login_url = f"https://discord.com/api/v9/oauth2/authorize?client_id={self.bot.config['client_id']}&response_type=code&redirect_uri={self.bot.config['redirect_uri']}&scope=identify%20guilds.join"
-            proxy = self.get_proxy()
+            proxy = await self.Proxies.get_random_proxy(self.bot)()
             response = self.client.get(login_url, proxies={"http": proxy, "https": proxy} if proxy else None)
             
             if response.status_code != 200:
@@ -466,7 +413,7 @@ class TokenManager:
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         try:
-            response = session.post(oauth_url, data=payload, headers=headers, proxies={"http": self.get_proxy(), "https": self.get_proxy()})
+            response = session.post(oauth_url, data=payload, headers=headers, proxies={"http": await self.Proxies.get_random_proxy(self.bot)(), "https": await self.Proxies.get_random_proxy(self.bot)()})
             data = response.json()
 
             return data.get("access_token"), data.get("refresh_token")
@@ -492,7 +439,7 @@ class TokenManager:
         users_url = "https://discord.com/api/v10/users/@me"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
-            response = session.get(users_url, headers=headers, proxies={"http": self.get_proxy(), "https": self.get_proxy()})
+            response = session.get(users_url, headers=headers, proxies={"http": await self.Proxies.get_random_proxy(self.bot)(), "https": await self.Proxies.get_random_proxy(self.bot)()})
             return response.json()
         except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to get user data: {str(e)}")
