@@ -1,4 +1,3 @@
-import aiohttp
 import asyncio
 import base64
 import os
@@ -304,29 +303,31 @@ class Tokenmanager:
         :return:
         """
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
+        headers = {"Authorization": token}
+
+        if selected_proxy:
+            self.client.proxies = {"http": selected_proxy, "https": selected_proxy}
         try:
-            async with aiohttp.ClientSession() as session:
-                session.proxies = selected_proxy
-                headers = {"Authorization": token}
-                async with session.get(url=url, headers=headers) as r:
-                    if r.status == 200:
-                        data = await r.json()
-                        if len(data) > 0:
-                            boost_ids = [boost['id'] for boost in data]
-                            return boost_ids, session
-                    elif r.status == 401:
-                        self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
-                    elif r.status == 403:
-                        self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Flagged Token ({token[:10]}...)')
-                    else:
-                        self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
-                return None, None
-        except aiohttp.ClientError as e:
-            self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
+                
+            r = self.client.get(url=url, headers=headers)
+            if r.status_code  == 200:
+                data = await r.json()
+                if len(data) > 0:
+                    boost_ids = [boost['id'] for boost in data]
+                    return boost_ids, self.client
+            elif r.status == 401:
+                self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
+            elif r.status == 403:
+                self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Flagged Token ({token[:10]}...)')
+            else:
+                self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
             return None, None
+        
+        except tls_client.exceptions.TlsClientException as e:
+            self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error retrieving boost data: {str(e)}")
-            return None, None
+    
 
     async def boost_server(self, token: str, guild_id: str, session, boost_ids) -> bool:
         """
@@ -357,7 +358,7 @@ class Tokenmanager:
                         self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
             return boosted
 
-        except aiohttp.ClientError as e:
+        except tls_client.exceptions.TlsClientException as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             return False
 
