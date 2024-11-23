@@ -1,10 +1,10 @@
-import aiohttp
 import asyncio
 import datetime
 import disnake
 import json
 import os
 import random
+import tls_client
 from typing import Tuple, Any
 
 from disnake import ApplicationCommandInteraction, Embed
@@ -63,6 +63,11 @@ class Token(commands.Cog):
         self.owner_ids = self.config["owner_ids"]
         self.timezone = datetime.timezone.utc
         self.file_paths = ["./input/1m_tokens.txt", "./input/3m_tokens.txt"]
+        self.client = tls_client.Session(
+            client_identifier="chrome112", # type: ignore
+            random_tls_extension_order=True
+        )
+
 
     @commands.slash_command(name="tokens", description="Token management commands")
     async def tokens(self, inter):
@@ -79,17 +84,15 @@ class Token(commands.Cog):
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
         await inter.response.defer(with_message=True)
-
         file_path = f'./input/{token_type.lower()}_tokens.txt'
 
-        async with aiohttp.ClientSession() as session:
+        try:
             with open(file_path, 'r') as file:
                 tokens = [token.strip() for token in file.readlines()]
-
             invalid_count, no_nitro_count, results = 0, 0, []
             valid_tokens, nitroless_tokens = [], []
             for token in tokens:
-                result = await self.check_token(session, token)
+                result = self.check_token(self.client, token)
                 if result['status'] == "valid":
                     valid_tokens.append(token)
                     results.append(result)
@@ -101,62 +104,68 @@ class Token(commands.Cog):
 
             with open(file_path, 'w') as file:
                 file.writelines(f"{token}\n" for token in valid_tokens)
-
-            embed = disnake.Embed(
+            embed = Embed(
                 title=f"Token Check Results - {token_type}",
-                color=disnake.Color.purple()
+                color=0x800080  # Purple
             )
-            """
-            for res in results:
-                embed.add_field(name=res['title'], value=res['description'], inline=False)
-            """
-
             if invalid_count:
                 embed.add_field(name="Invalid Tokens Removed", value=f"{invalid_count} invalid tokens removed.", inline=False)
-
             await inter.followup.send(embed=embed)
-
             if no_nitro_count > 0:
-                removal_embed = disnake.Embed(
+                removal_embed = Embed(
                     title="Remove Tokens Without Nitro?",
                     description=f"Found {no_nitro_count} tokens without Nitro. Remove them?",
-                    color=disnake.Color.purple()
+                    color=0x800080  # Purple
                 )
                 view = NitrolessRemovalButton(self, file_path, nitroless_tokens)
                 await inter.followup.send(embed=removal_embed, view=view)
 
+        except Exception as e:
+            self.bot.logger.error(f"An error occurred: {str(e)}")
+            error_embed = Embed(
+                title="Error",
+                description="An error occurred while checking tokens. Please check the logs.",
+                color=0xFF0000  # Red
+            )
+            await inter.followup.send(embed=error_embed)
+
+
     async def check_token(self, session, token):
         now = datetime.datetime.now(self.timezone).strftime('%H:%M')
         headers = {"Authorization": token}
+        response = session.get("https://discord.com/api/v9/users/@me", headers=headers)
+        if response.status_code != 200:
+            return {
+                "status": "invalid",
+                "title": "Invalid Token",
+                "description": f"Token: {self.mask_token(token)}"
+            }
+        user = response.json()
+        if user.get("premium_type") == 0:
+            return {
+                "status": "valid",
+                "type": "No Nitro",
+                "title": f"{now} - No Nitro",
+                "description": f"Token: {self.mask_token(token)}"
+            }
+        elif user.get("premium_type") == 2:
+            boost_response = session.get("https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots", headers=headers)
+            boost_data = boost_response.json() if boost_response.status_code == 200 else []
 
-        async with session.get("https://discord.com/api/v9/users/@me", headers=headers) as response:
-            if response.status != 200:
-                return {"status": "invalid", "title": "Invalid Token",
-                        "description": f"Token: {self.mask_token(token)}"}
-            user = await response.json()
+            available_boosts = sum(
+                1 for slot in boost_data if not slot.get('cooldown_ends_at') or
+                datetime.datetime.fromisoformat(slot['cooldown_ends_at']).replace(
+                    tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc)
+            )
+            boosted_server = boost_data[0]['premium_guild_subscription']['guild_id'] if boost_data and boost_data[0].get(
+                'premium_guild_subscription') else "None"
 
-        if user["premium_type"] == 0:
-            return {"status": "valid", "type": "No Nitro", "title": f"{now} - No Nitro",
-                    "description": f"Token: {self.mask_token(token)}"}
-
-        elif user["premium_type"] == 2:
-            async with session.get("https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots",
-                                   headers=headers) as response:
-                boost_data = await response.json() if response.status == 200 else []
-
-            available_boosts = sum(1 for slot in boost_data if not slot.get('cooldown_ends_at') or
-                                   datetime.datetime.fromisoformat(slot['cooldown_ends_at']).replace(
-                                       tzinfo=datetime.timezone.utc) <= datetime.datetime.now(datetime.timezone.utc))
-            boosted_server = boost_data[0]['premium_guild_subscription']['guild_id'] if boost_data and boost_data[
-                0].get('premium_guild_subscription') else "None"
-
-            async with session.get("https://discord.com/api/v9/users/@me/billing/subscriptions",
-                                   headers=headers) as response:
-                if response.status == 200:
-                    nitro_data = await response.json()
-                    nitro_expires = datetime.datetime.fromisoformat(nitro_data[0]['trial_ends_at']).strftime("%d.%m.%y")
-                else:
-                    nitro_expires = "Unknown"
+            billing_response = session.get("https://discord.com/api/v9/users/@me/billing/subscriptions", headers=headers)
+            if billing_response.status_code == 200:
+                nitro_data = billing_response.json()
+                nitro_expires = datetime.datetime.fromisoformat(nitro_data[0]['trial_ends_at']).strftime("%d.%m.%y") if nitro_data else "Unknown"
+            else:
+                nitro_expires = "Unknown"
 
             return {
                 "status": "valid",
@@ -258,55 +267,57 @@ class Token(commands.Cog):
         for token in tokens:
             headers = get_headers(token)
             brand_bio, brand_displayname = await get_brandingdata()
-
+            prx = Proxies()
             json_data = {
                 "bio": brand_bio
             }
-
-            # seperated because of not working
+            # seperated because of different url and lazy
             json_data2 = {
                 "nick": brand_displayname
             }
-            async with aiohttp.ClientSession() as session:
-                try:
-                    async with session.patch(
-                            f"https://discord.com/api/v9/users/%40me/profile",
-                            headers=headers,
-                            json=json_data,
-                    ) as response:
-                        response_text = await response.text()
-                        # no success +=1 bc of display name
-                        if response.status != 200:
-                            failed_tokens.append((token, f"`BRANDING_BIO` | HTTP {response.status}: {response_text}"))
-                except aiohttp.ClientConnectionError as e:
-                    failed_tokens.append((token, f"Connection Error: {str(e)}"))
-                except asyncio.TimeoutError:
-                    failed_tokens.append((token, "Request Timeout"))
-                except Exception as e:
-                    failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
+            try:
+                # Update the user profile
+                profile_response = self.client.patch(
+                    "https://discord.com/api/v9/users/@me/profile",
+                    headers=headers,
+                    json=json_data,
+                )
+                response_text = profile_response.text
 
-                try:
-                    prx = Proxies()
-                    async with session.patch(
-                            "https://discord.com/api/v9/guilds/{guild_id}/members/@me",
-                            headers=headers,
-                            json=json_data2,
-                            proxy= await prx.get_random_proxy(self.bot)
-                    ) as response2:
-                        response_text2 = await response2.text()
-                        # if not both successful then no successful operation!!! ~ redacted 2k24
-                        if response2.status == 200 and response.status == 200:
-                            success_count += 1
-                        elif response2.status == 404:
-                            failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))                            
-                        else:
-                            failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {response2.status}: {response_text2}"))
-                except aiohttp.ClientConnectionError as e:
-                    failed_tokens.append((token, f"Connection Error: {str(e)}"))
-                except asyncio.TimeoutError:
-                    failed_tokens.append((token, "Request Timeout"))
-                except Exception as e:
-                    failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
+                if profile_response.status_code != 200:
+                    failed_tokens.append((token, f"`BRANDING_BIO` | HTTP {profile_response.status_code}: {response_text}"))
+
+            except tls_client.exceptions.TlsClientException as e:
+                failed_tokens.append((token, f"Connection Error: {str(e)}"))
+            except Exception as e:
+                failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
+
+            try:
+                # Get a random proxy
+                proxy = prx.get_random_proxy(self.bot)
+
+                # Update the guild display name
+                display_name_response = self.client.patch(
+                    f"https://discord.com/api/v9/guilds/{guild_id}/members/@me",
+                    headers=headers,
+                    json=json_data2,
+                    proxies={"http": proxy, "https": proxy},
+                )
+                response_text2 = display_name_response.text
+
+                if display_name_response.status_code == 200 and profile_response.status_code == 200:
+                    success_count += 1
+                elif display_name_response.status_code == 404:
+                    failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {display_name_response.status_code}: {response_text2}"))
+                else:
+                    failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {display_name_response.status_code}: {response_text2}"))
+
+            except tls_client.exceptions.TlsClientException as e:
+                failed_tokens.append((token, f"Connection Error: {str(e)}"))
+            except Exception as e:
+                failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
+
+            return success_count
 
         # Summary of operation | ephemeral
         embed = Embed(
