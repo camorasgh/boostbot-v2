@@ -5,9 +5,8 @@ import random
 import re
 import string
 import tls_client
-import zipfile
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict
 
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
@@ -20,7 +19,6 @@ DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 
 
 class Filemanager:
-
     @staticmethod
     async def load_tokens(amount : int, token_type : str):
         """
@@ -65,20 +63,6 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
-
-## ATTENTION NEXT 2 FUNCTIONS MAY CAUSE IMMEDIATE DEATH ONCE SEEN
-    def write_joined_token(self, token, invite_code, success=True):
-        """
-        Writes the joined token to a success or fail file depending on join outcome.
-
-        Args:
-            token (str): Token used for joining.
-            invite_code (str): Invite code for the guild.
-            success (bool): Whether the join was successful.
-        """
-        file_path = self.success_file if success else self.fail_file
-        with open(file_path, 'a') as f:
-            f.write(f"{token} joined Server {invite_code}\n")
 
     async def save_results(self, guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
         """
@@ -126,8 +110,6 @@ class Tokenmanager:
         self.Proxies = Proxies()
         self.joined_count = 0
         self.not_joined_count = 0
-
-
     
     def get_cookies(self):
         """
@@ -238,7 +220,6 @@ class Tokenmanager:
             invite_code = match.group(2)
         else:
             pass
-        
 
         response = self.client.post(
             url='https://discord.com/api/v9/invites/{}'.format(invite_code),
@@ -251,7 +232,6 @@ class Tokenmanager:
         r_json = response.json()
         if response.status_code == 200:
             self.bot.logger.success('Joined! {} ({})'.format(token, invite_code))
-            self.filemanager.write_joined_token(token, invite_code, True) # Here error
             self.joined_count += 1
             guild_id = r_json.get("guild", {}).get("id")
             return True, guild_id
@@ -348,7 +328,6 @@ class Tokenmanager:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error boosting with token {token[:10]}: {str(e)}")
             return False
 
-
     async def process_single_token(self, token: str, guild_invite: str):
         """
         Starts single token process from getting a proxy to boosting the server
@@ -412,10 +391,6 @@ class Tokenmanager:
             inline=False
         )
         await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
-        self.join_results.clear()
-        self.boost_results.clear()
-        self.joined_count = 0
-        self.not_joined_count = 0
         config = await load_config()
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
@@ -426,7 +401,6 @@ class Tokenmanager:
             logchannel = logserver.get_channel(log_channel_id)
             await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
-
 
     async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
         """
@@ -506,7 +480,6 @@ class BoostingModal(ui.Modal):
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
             await interaction.followup.send("`ERR_UNKNOWN_EXCEPTION` An error occurred while boosting.", ephemeral=True)
-
 
 
 class JoinBoost(commands.Cog):
