@@ -22,10 +22,6 @@ DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
 class Filemanager:
     def __init__(self):
         self.proxies = []
-        self.session_dir = f"output/{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}/"
-        os.makedirs(self.session_dir, exist_ok=True)
-        self.success_file = os.path.join(self.session_dir, "JOINS_SUCCESS.txt")
-        self.fail_file = os.path.join(self.session_dir, "JOIN_FAILS.txt")
 
     @staticmethod
     async def load_tokens(amount : int, token_type : str):
@@ -116,20 +112,38 @@ class Filemanager:
         with open(file_path, 'a') as f:
             f.write(f"{token} joined Server {invite_code}\n")
 
-    def finalize_logs(self):
+    async def save_results(self, guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
         """
-        Zips the session's logs and removes the individual files to save space.
+        Saves results of the join and boost processes to output files.
+        Args:
+            guild_invite: The guild Invite for which results are saved.
+            amount: The number of boosts processed.
+            join_results: The results of the joining attempts (successful and failed).
+            boost_results: The results of the boosting attempts (successful and failed).
         """
-        zip_file = f"{self.session_dir.rstrip('/')}.zip"
-        with zipfile.ZipFile(zip_file, 'w') as zip_file:
-            for root, _, files in os.walk(self.session_dir):
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    zip_file.write(file_path, arcname=os.path.relpath(file_path, self.session_dir))
+        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        folder_name = f"./output/{timestamp}-{guild_invite}-({amount}x)"
+        os.makedirs(folder_name, exist_ok=True)
 
-        for file in os.listdir(self.session_dir):
-            os.remove(os.path.join(self.session_dir, file))
-        os.rmdir(self.session_dir)
+        with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:
+            for token, success in join_results.items():
+                if success:
+                    file.write(f"{token}\n")
+
+        with open(os.path.join(folder_name, "failed_joins.txt"), "w") as file:
+            for token, success in join_results.items():
+                if not success:
+                    file.write(f"{token}\n")
+
+        with open(os.path.join(folder_name, "successful_boosts.txt"), "w") as file:
+            for token, success in boost_results.items():
+                if success:
+                    file.write(f"{token}\n")
+
+        with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
+            for token, success in boost_results.items():
+                if not success:
+                    file.write(f"{token}\n")
 
 class Tokenmanager:
     def __init__(self, bot):
@@ -388,7 +402,7 @@ class Tokenmanager:
         except Exception as e:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
-    async def send_summary_embed(self, inter: ApplicationCommandInteraction):
+    async def send_summary_embed(self, inter: ApplicationCommandInteraction, guild_invite, amount):
         """
         Sends an embed summarizing the join and boost results.
         Resets the stats afterward to avoid stale data.
@@ -428,6 +442,7 @@ class Tokenmanager:
                   f"**Failed Boosts:** {failed_boosts}",
             inline=False
         )
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
         self.join_results.clear()
         self.boost_results.clear()
         self.joined_count = 0
@@ -442,6 +457,7 @@ class Tokenmanager:
             logchannel = logserver.get_channel(log_channel_id)
             await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
+
 
     async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
         """
@@ -464,7 +480,7 @@ class Tokenmanager:
 
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks)
-        await self.send_summary_embed(inter)
+        await self.send_summary_embed(inter, guild_invite, amount)
 
 
 class BoostingModal(ui.Modal):
