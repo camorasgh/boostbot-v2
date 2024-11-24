@@ -178,6 +178,7 @@ class Token(commands.Cog):
         Brands the token from 1m_tokens/3m_tokens with stuff from config.json
         :param inter: Provided by discord, interaction
         :param token_type: Type of token stock to be branded, either 1m tokens or 3m tokens or all
+        :param guild_id: Guild ID to brand the user in
         """
         if inter.author.id not in self.owner_ids:
             embed = Embed(
@@ -240,6 +241,7 @@ class Token(commands.Cog):
             json_data2 = {
                 "nick": brand_displayname
             }
+            profile_response, display_name_response = None, None
             try:
                 # Update the user profile
                 profile_response = self.client.patch(
@@ -252,7 +254,7 @@ class Token(commands.Cog):
                 if profile_response.status_code != 200:
                     failed_tokens.append((token, f"`BRANDING_BIO` | HTTP {profile_response.status_code}: {response_text}"))
 
-            except tls_client.exceptions.TlsClientException as e:
+            except tls_client.sessions.TLSClientExeption as e:
                 failed_tokens.append((token, f"Connection Error: {str(e)}"))
             except Exception as e:
                 failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
@@ -277,7 +279,7 @@ class Token(commands.Cog):
                 else:
                     failed_tokens.append((token, f"`BRANDING_DISPLAYNAME` | HTTP {display_name_response.status_code}: {response_text2}"))
 
-            except tls_client.exceptions.TlsClientException as e:
+            except tls_client.sessions.TLSClientExeption as e:
                 failed_tokens.append((token, f"Connection Error: {str(e)}"))
             except Exception as e:
                 failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
