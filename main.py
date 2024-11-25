@@ -262,6 +262,17 @@ async def on_ready_listener():
             Logger.error(error)
     Logger.info(f"Registered Commands: {len(vortex.all_slash_commands)}")
 
+
+@vortex.listen("on_connect")
+async def on_connect_listener():
+    Logger.success("Bot has successfully been connected to Discord")
+
+
+@vortex.listen("on_disconnect")
+async def on_disconnect_listener():
+    Logger.error("Bot has been disconnected from Discord")
+
+
 @vortex.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction):
     bucket = vortex.global_cooldown.get_bucket(inter) # type: ignore
