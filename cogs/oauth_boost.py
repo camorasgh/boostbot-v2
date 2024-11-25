@@ -292,12 +292,12 @@ class TokenManager:
 
         return errors
 
-    async def process_tokens(self, guild_id: str, amount: int, token_type: str) -> List[str]:
+    async def process_tokens(self, guild_ids: List[str], amount: int, token_type: str) -> List[str]:
         """
         Processes multiple tokens to join and boost a guild.
 
         Args:
-            :param guild_id: The ID of the guild to join and boost.
+            :param guild_ids: The IDs of the guild to join and boost.
             :param amount: The number of boosts required.
             :param token_type: Type of token (1m/3m).
 
@@ -305,15 +305,16 @@ class TokenManager:
             A list of error messages encountered during processing.
         """
         try:
-            load_tokens_error = await self.load_tokens(amount, token_type)
-            if load_tokens_error:
-                return [load_tokens_error]
+            for guild_id in guild_ids:
+                load_tokens_error = await self.load_tokens(amount, token_type)
+                if load_tokens_error:
+                    return [load_tokens_error]
 
-            tasks = [self.process_single_token(token, guild_id) for token in self.tokens]
-            results = await asyncio.gather(*tasks)
+                tasks = [self.process_single_token(token, guild_id) for token in self.tokens]
+                results = await asyncio.gather(*tasks)
 
-            errors = [error for error_list in results for error in error_list if error]
-            return errors
+                errors = [error for error_list in results for error in error_list if error]
+                return errors
         except Exception as e:
             self.bot.logger.error(f"Error processing tokens: {str(e)}")
             return [f"Error processing tokens: {str(e)}"]
@@ -448,38 +449,39 @@ class TokenManager:
             return None
 
 
-    def save_results(self, guild_id: str, amount: int) -> None:
+    def save_results(self, guild_ids: List[str], amount: int) -> None:
         """
         Saves results of the join and boost processes to output files.
 
         Args:
-            guild_id: The guild ID for which results are saved.
+            guild_ids: The guild ID for which results are saved.
             amount: The number of boosts processed.
         """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        folder_name = f"./output/{timestamp}-{guild_id}-({amount}x)"
-        os.makedirs(folder_name, exist_ok=True)
+        for guild_id in guild_ids:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+            folder_name = f"./output/{timestamp}-{guild_id}-({amount}x)"
+            os.makedirs(folder_name, exist_ok=True)
 
-        with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:
-            for token in self.counter.success_tokens["joined"]:
-                file.write(f"{token}\n")
+            with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:
+                for token in self.counter.success_tokens["joined"]:
+                    file.write(f"{token}\n")
 
-        with open(os.path.join(folder_name, "failed_joins.txt"), "w") as file:
-            for token in self.counter.failed_tokens["join_failed"]:
-                file.write(f"{token}\n")
+            with open(os.path.join(folder_name, "failed_joins.txt"), "w") as file:
+                for token in self.counter.failed_tokens["join_failed"]:
+                    file.write(f"{token}\n")
 
-        with open(os.path.join(folder_name, "successful_boosts.txt"), "w") as file:
-            for token in self.counter.success_tokens["boosted"]:
-                file.write(f"{token}\n")
+            with open(os.path.join(folder_name, "successful_boosts.txt"), "w") as file:
+                for token in self.counter.success_tokens["boosted"]:
+                    file.write(f"{token}\n")
 
-        with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
-            for token in self.counter.failed_tokens["boost_failed"]:
-                file.write(f"{token}\n")
+            with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
+                for token in self.counter.failed_tokens["boost_failed"]:
+                    file.write(f"{token}\n")
 
 
 class BoostingModal(disnake.ui.Modal):
     """Displays a modal for user input on guild boosting details."""
-    def __init__(self, bot) -> None:
+    def __init__(self, bot, mass_boost: bool = False) -> None:
         """
         Initializes the modal with the required input fields.
 
@@ -487,18 +489,19 @@ class BoostingModal(disnake.ui.Modal):
             bot: The bot instance for interacting with Discord.
         """
         self.bot: commands.InteractionBot = bot
+        self.mass_boost: bool = mass_boost
         components = [
             disnake.ui.TextInput(
-                label="Guild ID",
-                placeholder="Enter the guild ID",
+                label="Guild IDs" if mass_boost else "Guild ID",
+                placeholder="Enter Guild IDs, separated by commas" if mass_boost else "Enter the Guild ID",
                 custom_id="boosting.guild_id",
-                style=disnake.TextInputStyle.short,
+                style=disnake.TextInputStyle.paragraph if mass_boost else disnake.TextInputStyle.short,
                 min_length=3,
-                max_length=30,
+                max_length=1000 if mass_boost else 30,
             ),
             disnake.ui.TextInput(
                 label="Amount",
-                placeholder="The amount of boosts",
+                placeholder="The amount of boosts for each Guild" if mass_boost else "The amount of boosts",
                 custom_id="boosting.amount",
                 style=disnake.TextInputStyle.short,
                 min_length=1,
@@ -525,23 +528,27 @@ class BoostingModal(disnake.ui.Modal):
         await inter.response.defer(ephemeral=True)
         try:
             guild_id = inter.text_values['boosting.guild_id']
-            # Check if bot is in the guild
-            for guild in self.bot.guilds:
-                if guild.id == int(guild_id):
-                    break
-            else:
-                await inter.followup.send("`ERR_NOT_IN_GUILD` Bot is not in the specified guild.", ephemeral=True)
-                return
+            guild_ids = [gid.strip() for gid in guild_id.split(",")] if self.mass_boost else [guild_id]
             amount = int(inter.text_values['boosting.amount'])
             token_type = inter.text_values['boosting.token_type']
+
             if amount % 2 != 0:
                 await inter.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
+            
+            # Check if bot is in the guild
+            for guild_id in guild_ids:
+                for guild in self.bot.guilds:
+                    if guild.id == int(guild_id):
+                        break
+                else:
+                    await inter.followup.send("`ERR_NOT_IN_GUILD` Bot is not in the specified guild.", ephemeral=True)
+                    return
 
             token_manager = TokenManager(self.bot)
-            self.bot.logger.info(f"Boosting {amount} users to guild {guild_id}") # type: ignore
-            errors = await token_manager.process_tokens(guild_id, amount, token_type)
-            token_manager.save_results(guild_id, amount)
+            self.bot.logger.info(f"Boosting {amount} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore
+            errors = await token_manager.process_tokens(guild_ids, amount, token_type)
+            token_manager.save_results(guild_ids, amount)
 
             if errors:
                 error_msg = "\n".join(errors)
@@ -608,6 +615,26 @@ class OAuthBoost(commands.Cog):
 
         try:
             modal = BoostingModal(self.bot)
+            await inter.response.send_modal(modal)
+        except Exception as e:
+            self.bot.logger.error(str(e)) # type: ignore
+            await inter.response.send_message("`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
+
+    @oauth_decorator.sub_command(name="mass_boost", description="Mass Boost a guild using OAUTH")
+    async def oauth_boost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
+        """
+        Slash command for initiating the guild boosting modal.
+
+        Args:
+            inter: The interaction object from the command.
+        """
+        config = await load_config()
+        owner_ids = config['owner_ids']
+        if inter.author.id not in owner_ids:
+            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+
+        try:
+            modal = BoostingModal(self.bot, True)
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
