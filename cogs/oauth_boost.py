@@ -142,7 +142,7 @@ class TokenManager:
                 self.counter.increment_failed_joins(token)
                 return f"Failed to join user: {user_id}, Status: {response.status_code}"
 
-        except tls_client.sessionss.TlsClientException as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while adding user {user_id}: {str(e)}")
             self.counter.increment_failed_joins(token)
             return f"Network error joining user: {user_id}"
@@ -165,7 +165,7 @@ class TokenManager:
         """
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
-            boost_ids =  self.__get_boost_data(token=token)
+            boost_ids = self.__get_boost_data(token=token)
             if not boost_ids:
                 self.counter.increment_failed_boosts(token)
                 return f"No boost IDs available for token: {token[:10]}..."
