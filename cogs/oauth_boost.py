@@ -621,7 +621,7 @@ class OAuthBoost(commands.Cog):
             await inter.response.send_message("`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
 
     @oauth_decorator.sub_command(name="mass_boost", description="Mass Boost a guild using OAUTH")
-    async def oauth_boost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
+    async def oauth_massboost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
         """
         Slash command for initiating the guild boosting modal.
 
