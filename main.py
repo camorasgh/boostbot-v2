@@ -253,6 +253,10 @@ vortex = Bot()
 async def on_ready_listener():
     config = await load_config()
     success = await setup_database(database_name=config["database"]["name"])
+    if success:
+        Logger.success("Database setup successful")
+    else:
+        Logger.error("Database setup failed")
     cogs = Cog_Loader(vortex)
     cogs.load()
     print()
