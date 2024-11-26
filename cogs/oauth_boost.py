@@ -198,7 +198,7 @@ class TokenManager:
                         )
                         self.counter.increment_failed_boosts(token)
                         errors.append(f"Failed to boost token: {token[:10]}, Response: {response_json}")
-                except tls_client.exceptions.TlsClientException as e:
+                except tls_client.exceptions.TLSClientExeption as e:
                     self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
                     self.counter.increment_failed_boosts(token)
                     errors.append(f"Network error boosting token: {token[:10]}")
@@ -215,7 +215,7 @@ class TokenManager:
                 return f"Boosting failed for token: {token[:10]}"
             return None
 
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             self.counter.increment_failed_boosts(token)
             return f"Network error boosting token: {token[:10]}"
@@ -253,7 +253,7 @@ class TokenManager:
             else:
                 self.bot.logger.error(f"Unexpected status code {response.status_code} for token {token[:10]}...")
             return None
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"Network error while retrieving boost data: {str(e)}")
             return None
         except Exception as e:
@@ -385,7 +385,7 @@ class TokenManager:
                 self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to authorize token {token[:10]}... Status: {response.status_code}, Body: {response.text}")
                 return None
 
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during token authorization for {token[:10]}: {str(e)}")
             return None
         except Exception as e:
@@ -418,7 +418,7 @@ class TokenManager:
             data = response.json()
 
             return data.get("access_token"), data.get("refresh_token")
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to exchange code for token: {str(e)}")
             return None, None
         except Exception as e:
@@ -442,7 +442,7 @@ class TokenManager:
         try:
             response = session.get(users_url, headers=headers, proxies={"http": await self.Proxies.get_random_proxy(self.bot)(), "https": await self.Proxies.get_random_proxy(self.bot)()})
             return response.json()
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to get user data: {str(e)}")
             return None
         except Exception as e:

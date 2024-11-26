@@ -75,7 +75,7 @@ class Filemanager:
             join_results: The results of the joining attempts (successful and failed).
             boost_results: The results of the boosting attempts (successful and failed).
         """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         folder_name = f"./output/{timestamp}-{guild_invite}-({amount}x)"
         os.makedirs(folder_name, exist_ok=True)
 
@@ -275,7 +275,7 @@ class Tokenmanager:
                 
             r = self.client.get(url=url, headers=headers)
             if r.status_code  == 200:
-                data = await r.json()
+                data = r.json()
                 if len(data) > 0:
                     boost_ids = [boost['id'] for boost in data]
                     return boost_ids, self.client
@@ -287,13 +287,13 @@ class Tokenmanager:
                 self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
             return None, None
         
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error retrieving boost data: {str(e)}")
     
 
-    async def boost_server(self, token: str, guild_id: str, session, boost_ids) -> bool:
+    async def boost_server(self, token: str, guild_id: str, boost_ids) -> bool:
         """
         Boosts the server via guild id
         :param token: account token
@@ -312,17 +312,17 @@ class Tokenmanager:
             for boost_id in boost_ids:
                 payload = {"user_premium_guild_subscription_slot_ids": [int(boost_id)]}
                 headers = {"Authorization": token}
-                async with session.put(url=url, headers=headers, json=payload) as r:
-                    if r.status == 201:
-                        self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
-                        boosted = True
-                        break
-                    else:
-                        response_json = await r.json()
-                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
+                r = self.client.put(url=url, headers=headers, json=payload)
+                if r.status_code == 201:
+                    self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
+                    boosted = True
+                    break
+                else:
+                    response_json = r.json()
+                    self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
             return boosted
 
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.exceptions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             return False
 
@@ -343,8 +343,12 @@ class Tokenmanager:
             user_id = str(await self.get_userid(token=token))
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
-                boost_ids, session = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
-                boosted = await self.boost_server(token=token, guild_id=guild_id, session=session, boost_ids=boost_ids)
+                boost_data = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
+                if boost_data is None:
+                    self.bot.logger.error("Failed to retrieve boost data.")
+                    return
+                boost_ids, session = boost_data
+                boosted = await self.boost_server(token=token, guild_id=guild_id, boost_ids=boost_ids)
                 self.boost_results[user_id] = False if boosted == False else True
                 pass
             else:
@@ -403,7 +407,7 @@ class Tokenmanager:
                                                      )
 
         
-        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.join_results, self.boost_results)
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
         if config["logging"]["enabled"]:

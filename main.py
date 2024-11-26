@@ -12,6 +12,8 @@ from colorama import Fore, Style
 from disnake.ext import commands
 from typing import Dict, Any
 
+from core.database import setup_database
+from core.misc_boosting import load_config
 
 class Logger:
     @staticmethod
@@ -249,6 +251,8 @@ vortex = Bot()
 
 @vortex.listen("on_ready")
 async def on_ready_listener():
+    config = await load_config()
+    success = await setup_database(database_name=config["database"]["name"])
     cogs = Cog_Loader(vortex)
     cogs.load()
     print()
