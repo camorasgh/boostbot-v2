@@ -11,5 +11,8 @@
     "server_id": 123,
     "channel_id": 123,
     "boost_dm_notifications": false
+  },
+  "database": {
+    "name": "boost_keys.db"
   }
 }

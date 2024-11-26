@@ -5,13 +5,15 @@ import random
 import re
 import string
 import tls_client
-from datetime import datetime
-from typing import Dict
 
+from datetime import datetime
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
 from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
 from disnake.ext import commands
+from typing import Dict
+
 from core.misc_boosting import TokenTypeError, load_config, get_headers, Proxies
+from core import database
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -350,7 +352,7 @@ class Tokenmanager:
         except Exception as e:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
-    async def send_summary_embed(self, inter: ApplicationCommandInteraction, guild_invite, amount):
+    async def send_summary_embed(self, inter: ApplicationCommandInteraction, guild_invite, amount, boost_data=None):
         """
         Sends an embed summarizing the join and boost results.
         Resets the stats afterward to avoid stale data.
@@ -390,8 +392,18 @@ class Tokenmanager:
                   f"**Failed Boosts:** {failed_boosts}",
             inline=False
         )
-        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
         config = await load_config()
+
+        if boost_data:
+            boost_key, remaining_boosts = boost_data
+            boosts_needed_to_remove = remaining_boosts - success_boosts
+            success = database.remove_boost_from_key(boost_key=boost_key,
+                                                     boosts=boosts_needed_to_remove,
+                                                     database_name=config["database"]["name"]
+                                                     )
+
+        
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
         if config["logging"]["enabled"]:
@@ -402,7 +414,7 @@ class Tokenmanager:
             await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
 
-    async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
+    async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str, boost_data=None):
         """
         Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
         :param inter: Interaction in case of not enough tokens
@@ -423,7 +435,7 @@ class Tokenmanager:
 
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks)
-        await self.send_summary_embed(inter, guild_invite, amount)
+        await self.send_summary_embed(inter, guild_invite, amount, boost_data if boost_data else None)
 
 
 class BoostingModal(ui.Modal):
@@ -432,8 +444,9 @@ class BoostingModal(ui.Modal):
 
     Bot: The bot instance.
     """
-    def __init__(self, bot: commands.InteractionBot) -> None:
+    def __init__(self, bot: commands.InteractionBot, boost_data = None) -> None:
         self.bot = bot
+        self.boost_data = boost_data
         components = [
             ui.TextInput(
                 label="Guild Invite",
@@ -473,9 +486,20 @@ class BoostingModal(ui.Modal):
                 await interaction.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
             
+            if self.boost_data:
+                boost_key, remaining_boosts = self.boost_data
+                if amount > remaining_boosts:
+                    await interaction.followup.send(
+                        f"`ERR_INSUFFICIENT_BOOSTS` Your boost key `{boost_key:4}` only allows "
+                        f"{remaining_boosts} boosts, but you requested {amount}.",
+                        ephemeral=True,
+                    )
+                    return
+
+            
             tkn = Tokenmanager(self.bot)
             self.bot.logger.info(f"Boosting {int(amount / 2)} users to guild {guild_invite}") # type: ignore
-            await tkn.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount, token_type=token_type)
+            await tkn.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount, token_type=token_type, boost_data=self.boost_data)
 
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
@@ -499,11 +523,14 @@ class JoinBoost(commands.Cog):
     async def join_boost_guild(self, inter: ApplicationCommandInteraction):
         config = await load_config()
         owner_ids = config["owner_ids"]
-        if inter.author.id not in owner_ids:
+        boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
+                                                                   database_name=config["database"]["name"]
+                                                                   )
+        if inter.author.id not in owner_ids and not boost_data:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
         
         try:
-            modal = BoostingModal(self.bot)
+            modal = BoostingModal(self.bot,boost_data if boost_data else None)
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore

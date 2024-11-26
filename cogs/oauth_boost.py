@@ -9,6 +9,7 @@ from disnake import InteractionContextTypes, ApplicationIntegrationTypes
 from disnake.ext import commands
 
 from core.misc_boosting import TokenTypeError, load_config, Proxies
+from core import database
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -481,7 +482,7 @@ class TokenManager:
 
 class BoostingModal(disnake.ui.Modal):
     """Displays a modal for user input on guild boosting details."""
-    def __init__(self, bot, mass_boost: bool = False) -> None:
+    def __init__(self, bot, boost_data, mass_boost: bool = False) -> None:
         """
         Initializes the modal with the required input fields.
 
@@ -490,6 +491,7 @@ class BoostingModal(disnake.ui.Modal):
         """
         self.bot: commands.InteractionBot = bot
         self.mass_boost: bool = mass_boost
+        self.boost_data = boost_data
         components = [
             disnake.ui.TextInput(
                 label="Guild IDs" if mass_boost else "Guild ID",
@@ -536,6 +538,16 @@ class BoostingModal(disnake.ui.Modal):
                 await inter.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
             
+            if self.boost_data:
+                boost_key, remaining_boosts = self.boost_data
+                if amount > remaining_boosts:
+                    await inter.followup.send(
+                        f"`ERR_INSUFFICIENT_BOOSTS` Your boost key `{boost_key:4}` only allows "
+                        f"{remaining_boosts} boosts, but you requested {amount}.",
+                        ephemeral=True,
+                    )
+                    return
+
             # Check if bot is in the guild
             for guild_id in guild_ids:
                 for guild in self.bot.guilds:
@@ -547,7 +559,17 @@ class BoostingModal(disnake.ui.Modal):
 
             token_manager = TokenManager(self.bot)
             self.bot.logger.info(f"Boosting {amount} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore
-            errors = await token_manager.process_tokens(guild_ids, amount, token_type)
+            errors = await token_manager.process_tokens(guild_ids, amount, token_type, boost_data=self.boost_data)
+            config = await load_config()
+
+            if self.boost_data:
+                boost_key, remaining_boosts = self.boost_data
+                boosts_needed_to_remove = len(self.success_tokens["boosted"])
+                removed_boosts_success = database.remove_boost_from_key(boost_key=boost_key,
+                                                        boosts=boosts_needed_to_remove,
+                                                        database_name=config["database"]["name"]
+                                                        )
+                    
             token_manager.save_results(guild_ids, amount)
 
             if errors:
@@ -560,11 +582,11 @@ class BoostingModal(disnake.ui.Modal):
                         f"Joined: {token_manager.counter.JOINS}\n"
                         f"Not Joined: {token_manager.counter.FAILED_JOINS}\n"
                         f"Boosted: {token_manager.counter.BOOSTS}\n"
-                        f"Not Boosted: {token_manager.counter.FAILED_BOOSTS}"
+                        f"Not Boosted: {token_manager.counter.FAILED_BOOSTS}\n"
+                        f"Removed boosts from key: {removed_boosts_success}",
                     ),
                     color=disnake.Color.green(),
                 )
-                config = await load_config()
                 if config["logging"]["boost_dm_notifications"]:
                     await inter.author.send(embed=embed)
                 if config["logging"]["enabled"]:
@@ -610,18 +632,21 @@ class OAuthBoost(commands.Cog):
         """
         config = await load_config()
         owner_ids = config['owner_ids']
-        if inter.author.id not in owner_ids:
+        boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
+                                                                   database_name=config["database"]["name"]
+                                                                   )
+        if inter.author.id not in owner_ids and not boost_data:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
 
         try:
-            modal = BoostingModal(self.bot)
+            modal = BoostingModal(bot=self.bot, mass_boost=False, boost_data=boost_data)
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
             await inter.response.send_message("`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
 
     @oauth_decorator.sub_command(name="mass_boost", description="Mass Boost a guild using OAUTH")
-    async def oauth_boost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
+    async def oauth_massboost_guild(self, inter: disnake.ApplicationCommandInteraction) -> None:
         """
         Slash command for initiating the guild boosting modal.
 
@@ -630,11 +655,14 @@ class OAuthBoost(commands.Cog):
         """
         config = await load_config()
         owner_ids = config['owner_ids']
-        if inter.author.id not in owner_ids:
+        boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
+                                                                   database_name=config["database"]["name"]
+                                                                   )
+        if inter.author.id not in owner_ids and not boost_data:
             return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
 
         try:
-            modal = BoostingModal(self.bot, True)
+            modal = BoostingModal(bot=self.bot, mass_boost=False, boost_data=boost_data)
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
