@@ -261,14 +261,18 @@ class Token(commands.Cog):
 
             try:
                 # Get a random proxy
-                proxy = prx.get_random_proxy(self.bot)
+                proxy = await prx.get_random_proxy(self.bot)
+                proxy = {
+                    "http": "http://{}".format(proxy),
+                    "https": "https://{}".format(proxy)
+                } if proxy else None
 
                 # Update the guild display name
                 display_name_response = self.client.patch(
                     f"https://discord.com/api/v9/guilds/{guild_id}/members/@me",
                     headers=headers,
                     json=json_data2,
-                    proxies={"http": proxy, "https": proxy},
+                    proxy=proxy
                 )
                 response_text2 = display_name_response.text
 
