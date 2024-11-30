@@ -40,24 +40,35 @@ class Token(commands.Cog):
 
     @tokens.sub_command(name="check", description="Checks all tokens available")
     async def check(self, inter: ApplicationCommandInteraction, token_type: str = commands.Param(choices=["1M", "3M"])):
+        await inter.response.defer()
         if inter.author.id not in self.owner_ids:
             embed = Embed(
                 title="Unauthorized Access",
                 description="You are not authorized to use this command.",
                 color=0xFF0000  # Red
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_message(embed=embed)
             return
-        await inter.response.defer(with_message=True)
-        file_path = f'./input/{token_type.lower()}_tokens.txt'
 
+        file_path = f'./input/{token_type.lower()}_tokens.txt'
+        if not os.path.exists(file_path):
+            embed = Embed(
+                title="File Not Found",
+                description=f"The file `{token_type.lower()}_tokens.txt` does not exist.",
+                color=0xFFA500  # Orange
+            )
+            await inter.edit_original_message(embed=embed)
+            return
+        print("Starting")
         try:
             with open(file_path, 'r') as file:
                 tokens = [token.strip() for token in file.readlines()]
+            print("Tokens: ", tokens)
             invalid_count, no_nitro_count, results = 0, 0, []
             valid_tokens, nitroless_tokens = [], []
             for token in tokens:
-                result = self.check_token(self.client, token)
+                result = await self.check_token(self.client, token)
+                print("Result: ", result)
                 if result['status'] == "valid":
                     valid_tokens.append(token)
                     results.append(result)
@@ -73,9 +84,17 @@ class Token(commands.Cog):
                 title=f"Token Check Results - {token_type}",
                 color=0x800080  # Purple
             )
+            embed.add_field(name="Total Tokens", value=f"{len(tokens)} token(s) found.", inline=False)
+            valid_descriptions = "\n".join([result['description'] for result in results if result['status'] == 'valid'])
+            embed.add_field(name="Valid Tokens", value=f"`{valid_descriptions[:1024]}`", inline=False)
+            invalid_descriptions = "\n".join([result['description'] for result in results if result['status'] == 'invalid'])
+            embed.add_field(name="Invalid Tokens", value=f"`{invalid_descriptions[:1024]}`", inline=False)
+
             if invalid_count:
                 embed.add_field(name="Invalid Tokens Removed", value=f"{invalid_count} invalid tokens removed.", inline=False)
-            await inter.followup.send(embed=embed)
+
+
+            await inter.edit_original_message(embed=embed)
             if no_nitro_count > 0:
                 removal_embed = Embed(
                     title="Remove Tokens Without Nitro?",
@@ -83,7 +102,7 @@ class Token(commands.Cog):
                     color=0x800080  # Purple
                 )
                 view = NitrolessRemovalButton(self, file_path, nitroless_tokens)
-                await inter.followup.send(embed=removal_embed, view=view)
+                await inter.edit_original_message(embed=removal_embed, view=view)
 
         except Exception as e:
             self.bot.logger.error(f"An error occurred: {str(e)}")
@@ -92,7 +111,7 @@ class Token(commands.Cog):
                 description="An error occurred while checking tokens. Please check the logs.",
                 color=0xFF0000  # Red
             )
-            await inter.followup.send(embed=error_embed)
+            await inter.edit_original_message(embed=error_embed)
 
 
     async def check_token(self, session, token):

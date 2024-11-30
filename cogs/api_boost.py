@@ -8,7 +8,7 @@ import tls_client
 
 from datetime import datetime
 from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
-from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
+from disnake import ModalInteraction, ui, TextInputStyle, Embed
 from disnake.ext import commands
 from typing import Dict
 
@@ -65,8 +65,8 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
-
-    async def save_results(self, guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
+    @staticmethod
+    async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
         """
         Saves results of the join and boost processes to output files.
         Args:
@@ -279,15 +279,15 @@ class Tokenmanager:
                 if len(data) > 0:
                     boost_ids = [boost['id'] for boost in data]
                     return boost_ids, self.client
-            elif r.status == 401:
+            elif r.status_code == 401:
                 self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
-            elif r.status == 403:
+            elif r.status_code == 403:
                 self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Flagged Token ({token[:10]}...)')
             else:
-                self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
+                self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status_code} for token {token[:10]}...')
             return None, None
         
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error retrieving boost data: {str(e)}")
@@ -298,7 +298,7 @@ class Tokenmanager:
         Boosts the server via guild id
         :param token: account token
         :param guild_id: id of the server to boost
-        :param session: session from get_boost_data
+
         :param boost_ids: boost ids as a list/tuple/etc.
         :return:
         """
@@ -319,10 +319,13 @@ class Tokenmanager:
                     break
                 else:
                     response_json = r.json()
+                    if "Must wait for premium server subscription cooldown to expire" in response_json.get("message", ""):
+                        self.bot.logger.error(f"`ERR_COOLDOWN` Boosts Cooldown {token[:10]}")
+                        break
                     self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
             return boosted
 
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             return False
 
@@ -362,6 +365,9 @@ class Tokenmanager:
         Resets the stats afterward to avoid stale data.
         Params:
         :param inter: Interaction, Provided by Discord
+        :param guild_invite: The guild invite
+        :param amount: The amount of boosts
+        :param boost_data: The boost data (boost key, remaining boosts) if available
         """
 
         async def censor_token(token: str) -> str:
@@ -388,8 +394,8 @@ class Tokenmanager:
                 value=join_results_str[:1024],  # Discord field size limit
                 inline=False
             )
-        success_boosts = sum(1 for success in self.boost_results.values() if success)
-        failed_boosts = len(self.boost_results) - success_boosts
+        success_boosts = sum(1 for success in self.boost_results.values() if success) * 2
+        failed_boosts = (len(self.boost_results) - success_boosts) * 2
         embed.add_field(
             name="Boosting Results",
             value=f"**Successful Boosts:** {success_boosts}\n"
@@ -407,7 +413,7 @@ class Tokenmanager:
                                                      )
 
         
-        await Filemanager.save_results(guild_invite, amount, self.join_results, self.join_results, self.boost_results)
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results) # Possible error here
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
         if config["logging"]["enabled"]:
@@ -425,6 +431,7 @@ class Tokenmanager:
         :param guild_invite: guild invite from modal
         :param amount: amount to boost
         :param token_type: type of token (1m/3m)
+        :param boost_data: boost data if available
         """
         tokens_to_process = []
         try:
