@@ -636,7 +636,13 @@ class OAuthBoost(commands.Cog):
                                                                    database_name=config["database"]["name"]
                                                                    )
         if inter.author.id not in owner_ids and not boost_data:
-            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
 
         try:
             modal = BoostingModal(bot=self.bot, mass_boost=False, boost_data=boost_data)
@@ -659,7 +665,13 @@ class OAuthBoost(commands.Cog):
                                                                    database_name=config["database"]["name"]
                                                                    )
         if inter.author.id not in owner_ids and not boost_data:
-            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
 
         try:
             modal = BoostingModal(bot=self.bot, mass_boost=False, boost_data=boost_data)
