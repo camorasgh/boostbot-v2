@@ -2,6 +2,20 @@ import sqlite3
 from typing import Tuple, List, Optional
 
 
+async def database_connection(database_name : str):
+    """
+    Establishes a connection for the sqlite3 database
+    Params:
+        :param database_name: Name of the database
+    Returns:
+        connection: Sqlite3 connection to the database
+        cursor:     Sqlite3 connection cursor to the database
+    """
+    connection = sqlite3.connect(database=database_name)
+    cursor = connection.cursor()
+    return connection, cursor
+
+
 async def setup_database(database_name: str) -> bool:
     """
     Sets up the database with the necessary tables for managing users and boost keys.
@@ -44,21 +58,13 @@ async def setup_database(database_name: str) -> bool:
         return False
 
 
-async def database_connection(database_name : str):
-    """
-    Establishes a connection for the sqlite3 database
-    Params:
-        :param database_name: Name of the database
-    Returns:
-        connection: Sqlite3 connection to the database
-        cursor:     Sqlite3 connection cursor to the database
-    """
-    connection = sqlite3.connect(database=database_name)
-    cursor = connection.cursor()
-    return connection, cursor
-
-
 async def add_user(user_id: int, database_name: str):
+    """
+    Adds a user to the database if they don't already exist.
+
+    :param user_id: The unique ID of the user to add.
+    :param database_name: The name of the SQLite3 database file.
+    """
     connection, cursor = await database_connection(database_name)
     cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?);", (user_id,))
     connection.commit()
@@ -76,6 +82,13 @@ async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name : 
 
 
 async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name : str):
+    """
+    Assigns a boost key to a user. This action will create a record in the user_boost_keys table.
+
+    :param user_id: The unique ID of the user to whom the boost key will be assigned.
+    :param boost_key: The boost key to assign to the user.
+    :param database_name: The name of the SQLite3 database file.
+    """
     connection, cursor = await database_connection(database_name)
     cursor.execute("""
         INSERT INTO user_boost_keys (user_id, boost_key)
@@ -86,6 +99,13 @@ async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name :
 
 
 async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name : str):
+    """
+    Removes a boost key from a user. If no users are associated with the boost key, the key is deleted from the boost_keys table.
+
+    :param user_id: The unique ID of the user from whom the boost key will be removed.
+    :param boost_key: The boost key to remove from the user.
+    :param database_name: The name of the SQLite3 database file.
+    """
     connection, cursor = await database_connection(database_name)
 
     cursor.execute("""
@@ -105,6 +125,13 @@ async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name
 
 
 async def get_boost_keys_for_user(user_id: int, database_name : str) -> List[Tuple[str, int]]:
+    """
+    Retrieves all boost keys assigned to a user along with the number of redeemable boosts left.
+
+    :param user_id: The unique ID of the user whose boost keys are being fetched.
+    :param database_name: The name of the SQLite3 database file.
+    :return: A list of tuples, where each tuple contains a boost key and the number of redeemable boosts.
+    """
     connection, cursor = await database_connection(database_name)
     cursor.execute("""
         SELECT bk.boost_key, bk.redeemable_boosts
@@ -153,3 +180,41 @@ async def remove_boost_from_key(boost_key: str, boosts : int, database_name : st
     connection.commit()
     connection.close()
     return success
+
+async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, database_name: str) -> bool:
+    """
+    Transfers a boost key from one user (sender) to another user (receiver) in the database.
+
+    This function checks if the sender owns the specified boost key. If the sender does not own the key,
+    the transfer is aborted and `False` is returned. Otherwise, the boost key is transferred to the receiver,
+    and `True` is returned.
+
+    :param sender_id: The unique ID of the user sending the boost key.
+    :param receiver_id: The unique ID of the user receiving the boost key.
+    :param boost_key: The boost key to be transferred.
+    :param database_name: The name of the SQLite3 database file.
+    :return: `True` if the transfer was successful, `False` if the sender does not own the key.
+    """
+
+    connection, cursor = await database_connection(database_name)
+
+    # sender owns key check
+    cursor.execute("""
+        SELECT COUNT(*)
+        FROM user_boost_keys
+        WHERE user_id = ? AND boost_key = ?;
+    """, (sender_id, boost_key))
+    if cursor.fetchone()[0] == 0:
+        connection.close()
+        return False  # sender does not own the key
+
+    # boost key to receiver
+    cursor.execute("""
+        UPDATE user_boost_keys
+        SET user_id = ?
+        WHERE user_id = ? AND boost_key = ?;
+    """, (receiver_id, sender_id, boost_key))
+
+    connection.commit()
+    connection.close()
+    return True
