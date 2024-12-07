@@ -5,7 +5,7 @@ import tls_client
 from typing import List, Dict, Optional, Tuple
 
 import disnake
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes
+from disnake import Embed, InteractionContextTypes, ApplicationIntegrationTypes
 from disnake.ext import commands
 
 from core.misc_boosting import TokenTypeError, load_config, Proxies

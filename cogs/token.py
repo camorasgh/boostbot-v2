@@ -307,8 +307,6 @@ class Token(commands.Cog):
             except Exception as e:
                 failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
 
-            return success_count
-
         # Summary of operation | ephemeral
         embed = Embed(
             title="Branding Operation Summary",

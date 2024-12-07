@@ -76,7 +76,8 @@ class Filemanager:
             boost_results: The results of the boosting attempts (successful and failed).
         """
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        folder_name = f"./output/{timestamp}-{guild_invite}-({amount}x)"
+        safe_guild_invite = re.sub(r'[<>:"/\\|?*]', '_', guild_invite) # in order to avoid syntax for file names / folder names
+        folder_name = f"./output/{timestamp}-{safe_guild_invite}-({amount}x)"
         os.makedirs(folder_name, exist_ok=True)
 
         with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:

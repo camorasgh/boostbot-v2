@@ -57,18 +57,19 @@ class Users(commands.Cog):
         boost_key = ""
         for i in range(length):
             boost_key += random.choice(abc)
+        database_name = self.config["database"]["name"]
         await add_boost_key(boost_key=boost_key,
                             redeemable_boosts=redeemable_boosts,
-                            database_name=self.config["database"]["name"]
+                            database_name=database_name
                             )
         await add_user(user_id=user_id, 
-                       database_name=self.config["database"]["name"]
+                       database_name=database_name
                       )
         await assign_boost_key_to_user(user_id=user_id, 
                                         boost_key=boost_key, 
-                                        database_name=self.config["database"]["name"]
+                                        database_name=database_name
                                       )
-        await inter.response.send_message(f"{boost_key}, {redeemable_boosts}, {self.config["database"]["name"]}", ephemeral=True)
+        await inter.response.send_message(f"{boost_key}, {redeemable_boosts}, {database_name}", ephemeral=True)
 
 
 def setup(bot):
