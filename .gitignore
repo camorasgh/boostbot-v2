@@ -164,3 +164,4 @@ cython_debug/
 #node/js dependencies
 node_modules/
 jspm_packages/
+output/
