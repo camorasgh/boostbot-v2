@@ -567,7 +567,7 @@ class BoostingModal(disnake.ui.Modal):
                 boosts_needed_to_remove = len(self.success_tokens["boosted"])
                 removed_boosts_success = database.remove_boost_from_key(boost_key=boost_key,
                                                         boosts=boosts_needed_to_remove,
-                                                        database_name=config["database"]["name"]
+                                                        database_name=config["boost_keys_database"]["name"]
                                                         )
                     
             token_manager.save_results(guild_ids, amount)
@@ -633,9 +633,9 @@ class OAuthBoost(commands.Cog):
         config = await load_config()
         owner_ids = config['owner_ids']
         boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
-                                                                   database_name=config["database"]["name"]
-                                                                   )
-        if inter.author.id not in owner_ids and not boost_data:
+                                                                   database_name=config["boost_keys_database"]["name"]
+                                                                   ) if config["boost_keys_database"]["enabled"] else None
+        if inter.author.id not in owner_ids and boost_data is None:
             embed = Embed(
                 title="Unauthorized Access",
                 description="You are not authorized to use this command.",
@@ -662,7 +662,7 @@ class OAuthBoost(commands.Cog):
         config = await load_config()
         owner_ids = config['owner_ids']
         boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
-                                                                   database_name=config["database"]["name"]
+                                                                   database_name=config["boost_keys_database"]["name"]
                                                                    )
         if inter.author.id not in owner_ids and not boost_data:
             embed = Embed(

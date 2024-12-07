@@ -252,7 +252,7 @@ vortex = Bot()
 @vortex.listen("on_ready")
 async def on_ready_listener():
     config = await load_config()
-    success = await setup_database(database_name=config["database"]["name"])
+    success = await setup_database(database_name=config["boost_keys_database"]["name"])
     if success:
         Logger.success("Database setup successful")
     else:

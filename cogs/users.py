@@ -6,13 +6,14 @@ from disnake.ext import commands
 
 from core.database import add_boost_key, add_user, assign_boost_key_to_user
 
+with open("config.json", "r") as f:
+    config = json.load(f)
+
 
 class Users(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        with open("config.json", "r") as f:
-            self.config = json.load(f)
-        self.owner_ids = self.config["owner_ids"]
+        self.owner_ids = config["owner_ids"]
 
     @commands.slash_command(name="users", description="User management commands")
     async def users(self, inter: ApplicationCommandInteraction):
@@ -57,7 +58,7 @@ class Users(commands.Cog):
         boost_key = ""
         for i in range(length):
             boost_key += random.choice(abc)
-        database_name = self.config["database"]["name"]
+        database_name = self.config["boost_keys_database"]["name"]
         await add_boost_key(boost_key=boost_key,
                             redeemable_boosts=redeemable_boosts,
                             database_name=database_name
@@ -73,4 +74,5 @@ class Users(commands.Cog):
 
 
 def setup(bot):
-    bot.add_cog(Users(bot))
+    if config["boost_keys_database"]["enabled"]:
+        bot.add_cog(Users(bot))

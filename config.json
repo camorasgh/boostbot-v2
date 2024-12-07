@@ -12,7 +12,8 @@
     "channel_id": 123,
     "boost_dm_notifications": false
   },
-  "database": {
+  "boost_keys_database": {
+    "enabled": true,
     "name": "boost_keys.db"
   }
 }
