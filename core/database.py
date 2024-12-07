@@ -143,6 +143,7 @@ async def get_boost_keys_for_user(user_id: int, database_name : str) -> List[Tup
     connection.close()
     return keys
 
+
 async def check_user_has_valid_boost_key(user_id: int, database_name : str) -> Optional[Tuple[str, int]]:
     """
     Checks if a user has a valid boost key with at least one boost remaining.
@@ -162,6 +163,7 @@ async def check_user_has_valid_boost_key(user_id: int, database_name : str) -> O
     connection.close()
     return result
 
+
 async def remove_boost_from_key(boost_key: str, boosts : int, database_name : str) -> bool:
     """
     Deducts one boost from the specified boost key.
@@ -180,6 +182,7 @@ async def remove_boost_from_key(boost_key: str, boosts : int, database_name : st
     connection.commit()
     connection.close()
     return success
+
 
 async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, database_name: str) -> bool:
     """

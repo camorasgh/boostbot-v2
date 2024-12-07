@@ -51,6 +51,7 @@ def get_headers(token: str) -> Dict:
     }
     return headers # "hardcoded things cuz IDK but it works godly" ~ borgo 2k24
 
+
 class Proxies:
     def __init__(self):
         self.proxies = []
