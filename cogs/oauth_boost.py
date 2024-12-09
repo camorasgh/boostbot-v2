@@ -450,7 +450,7 @@ class TokenManager:
             return None
 
 
-    def save_results(self, guild_ids: List[str], amount: int) -> None:
+    def save_results(self, guild_ids: List[str], amount: int, boost_key = None, user_id = None) -> None:
         """
         Saves results of the join and boost processes to output files.
 
@@ -478,6 +478,13 @@ class TokenManager:
             with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
                 for token in self.counter.failed_tokens["boost_failed"]:
                     file.write(f"{token}\n")
+            
+            if boost_key and user_id:
+                with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+                    file.write(f"Boost Key: {boost_key}\nUser ID: {user_id}\nTimestamp: {timestamp}")
+            else:
+                with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+                    file.write(f"None used")
 
 
 class BoostingModal(disnake.ui.Modal):
@@ -570,7 +577,7 @@ class BoostingModal(disnake.ui.Modal):
                                                         database_name=config["boost_keys_database"]["name"]
                                                         )
                     
-            token_manager.save_results(guild_ids, amount)
+            token_manager.save_results(guild_ids, amount,  boost_key if self.boost_data else None, inter.author.id if self.boost_data else None) # Possible Error here
 
             if errors:
                 error_msg = "\n".join(errors)

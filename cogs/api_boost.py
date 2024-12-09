@@ -66,7 +66,7 @@ class Filemanager:
         
         return tokens[:amount // 2]
     @staticmethod
-    async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
+    async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict, boost_key = None, user_id = None) -> None:
         """
         Saves results of the join and boost processes to output files.
         Args:
@@ -99,6 +99,14 @@ class Filemanager:
             for token, success in boost_results.items():
                 if not success:
                     file.write(f"{token}\n")
+
+        if boost_key and user_id:
+            with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+                file.write(f"Boost Key: {boost_key}\nUser ID: {user_id}\nTimestamp: {timestamp}")
+        else:
+            with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+                file.write(f"None used")
+
 
 class Tokenmanager:
     def __init__(self, bot):
@@ -414,7 +422,7 @@ class Tokenmanager:
                                                      )
 
         
-        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results) # Possible error here
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results, boost_key if boost_data else None, inter.author.id if boost_data else None) # Possible error here
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
         if config["logging"]["enabled"]:
