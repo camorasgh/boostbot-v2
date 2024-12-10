@@ -208,7 +208,7 @@ class Users(commands.Cog):
         await inter.response.send_message(embed=embed, ephemeral=True)
 
     @users.sub_command(name="add_boosts", description="Adds boosts to a boost key")
-    async def add_boosts(
+    async def add_boosts(self,
         inter: ApplicationCommandInteraction,
         boost_key: str = commands.Param(description="The boost key to update."),
         boosts: int = commands.Param(description="Number of boosts to add.")
@@ -229,7 +229,7 @@ class Users(commands.Cog):
             print(e)
 
     @users.sub_command(name="remove_boosts", description="Removes boosts to a boost key")
-    async def remove_boosts(
+    async def remove_boosts(self,
         inter: ApplicationCommandInteraction,
         boost_key: str = commands.Param(description="The boost key to update."),
         boosts: int = commands.Param(description="Number of boosts to remove.")

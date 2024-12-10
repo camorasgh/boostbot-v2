@@ -427,7 +427,7 @@ class Tokenmanager:
             success = database.remove_boost_from_key(boost_key=boost_key,
                                                      boosts=boosts_needed_to_remove,
                                                      database_name=config["boost_keys_database"]["name"]
-                                                     )
+                                                     ) # unused now what
 
         
         await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results, boost_key if boost_data else None, inter.author.id if boost_data else None) # Possible error here

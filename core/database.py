@@ -158,6 +158,30 @@ async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to assign boost key: {e}")
 
+async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name : str):
+    """
+    Removes a boost key from a user. If no users are associated with the boost key, the key is deleted from the boost_keys table.
+
+    :param user_id: The unique ID of the user from whom the boost key will be removed.
+    :param boost_key: The boost key to remove from the user.
+    :param database_name: The name of the SQLite3 database file.
+    """
+    connection, cursor = await database_connection(database_name)
+
+    cursor.execute("""
+        DELETE FROM user_boost_keys
+        WHERE user_id = ? AND boost_key = ?;
+    """, (user_id, boost_key))
+
+    cursor.execute("""
+        SELECT COUNT(*) FROM user_boost_keys WHERE boost_key = ?;
+    """, (boost_key,))
+    count = cursor.fetchone()[0]
+    if count == 0:
+        cursor.execute("DELETE FROM boost_keys WHERE boost_key = ?;", (boost_key,))
+
+    connection.commit()
+    connection.close()
 
 async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str) -> bool:
     """
