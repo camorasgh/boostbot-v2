@@ -5,7 +5,7 @@ from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
 
 from core.database import add_boost_key, add_user, assign_boost_key_to_user, remove_boost_key_from_user
-from core.database import transfer_boost_key, get_boost_keys_for_user
+from core.database import transfer_boost_key, get_boost_keys_for_user, update_boosts_for_key
 
 with open("config.json", "r") as f:
     config = json.load(f)
@@ -59,7 +59,7 @@ class Users(commands.Cog):
         boost_key = ""
         for i in range(length):
             boost_key += random.choice(abc)
-        database_name = self.config["boost_keys_database"]["name"]
+        database_name = config["boost_keys_database"]["name"]
         await add_boost_key(boost_key=boost_key,
                             redeemable_boosts=redeemable_boosts,
                             database_name=database_name
@@ -71,7 +71,7 @@ class Users(commands.Cog):
                                         boost_key=boost_key, 
                                         database_name=database_name
                                       )
-        await inter.response.send_message(f"{boost_key}, {redeemable_boosts}, {database_name}", ephemeral=True)
+        await inter.response.send_message(f"Assigned Boost Key `{boost_key}` with {redeemable_boosts} redeemable boosts to <@{user_id}>", ephemeral=True)
 
     @users.sub_command(name="remove_key", description="Removes a boost key from a user.")
     async def remove_key(self, inter: ApplicationCommandInteraction, user=None, boost_key: str = None):
@@ -100,12 +100,12 @@ class Users(commands.Cog):
 
         user_id = int(user_id)
         
-        database_name = self.config["boost_keys_database"]["name"]
+        database_name = config["boost_keys_database"]["name"]
         await remove_boost_key_from_user(user_id=user_id, boost_key=boost_key, database_name=database_name)
         
         embed = Embed(
             title="Boost Key Removed",
-            description=f"The boost key `{boost_key}` has been removed from user `<@{user_id}>`.",
+            description=f"The boost key `{boost_key}` has been removed from user <@{user_id}>.",
             color=0x00FF00  # Green
         )
         await inter.response.send_message(embed=embed, ephemeral=True)
@@ -143,19 +143,19 @@ class Users(commands.Cog):
         sender_id = int(sender_id)
         receiver_id = int(receiver_id)
         
-        database_name = self.config["boost_keys_database"]["name"]
+        database_name = config["boost_keys_database"]["name"]
         success = await transfer_boost_key(sender_id=sender_id, receiver_id=receiver_id, boost_key=boost_key, database_name=database_name)
         
         if success:
             embed = Embed(
                 title="Boost Key Transferred",
-                description=f"The boost key `{boost_key}` has been transferred from `<@{sender_id}>` to `<@{receiver_id}>`.",
+                description=f"The boost key `{boost_key}` has been transferred from <@{sender_id}> to <@{receiver_id}>.",
                 color=0x00FF00  # Green
             )
         else:
             embed = Embed(
                 title="Transfer Failed",
-                description=f"The sender `<@{sender_id}>` does not own the boost key `{boost_key}`.",
+                description=f"The sender <@{sender_id}> does not own the boost key `{boost_key}`.",
                 color=0xFF0000  # Red
             )
         
@@ -188,7 +188,7 @@ class Users(commands.Cog):
 
         user_id = int(user_id)
         
-        database_name = self.config["boost_keys_database"]["name"]
+        database_name = config["boost_keys_database"]["name"]
         keys = await get_boost_keys_for_user(user_id=user_id, database_name=database_name)
         
         if not keys:
@@ -201,12 +201,53 @@ class Users(commands.Cog):
             keys_list = "\n".join([f"`{key[0]}` - Redeemable Boosts: `{key[1]}`" for key in keys])
             embed = Embed(
                 title="Boost Keys",
-                description=f"Boost keys for `<@{user_id}>`:\n\n{keys_list}",
+                description=f"Boost keys for <@{user_id}>:\n\n{keys_list}",
                 color=0x00FF00  # Green
             )
 
         await inter.response.send_message(embed=embed, ephemeral=True)
 
+    @users.sub_command(name="add_boosts", description="Adds boosts to a boost key")
+    async def add_boosts(
+        inter: ApplicationCommandInteraction,
+        boost_key: str = commands.Param(description="The boost key to update."),
+        boosts: int = commands.Param(description="Number of boosts to add.")
+    ):
+        """
+        Slash command to add boosts to a boost key.
+        """
+        await inter.response.defer()
+        try:
+            success = await update_boosts_for_key(boost_key, boosts, config["boost_keys_database"]["name"], "add")
+            if success:
+                await inter.response.send_message(f"✅ Successfully added {boosts} boosts to `{boost_key}`.", ephemeral=True)
+            else:
+                await inter.response.send_message(f"❌ Could not add boosts to `{boost_key}`. Key may not exist.", ephemeral=True)
+        except ValueError as e:
+            await inter.response.send_message(f"⚠️ Error: {e}", ephemeral=True)
+        except Exception as e:
+            print(e)
+
+    @users.sub_command(name="remove_boosts", description="Removes boosts to a boost key")
+    async def remove_boosts(
+        inter: ApplicationCommandInteraction,
+        boost_key: str = commands.Param(description="The boost key to update."),
+        boosts: int = commands.Param(description="Number of boosts to remove.")
+    ):
+        """
+        Slash command to remove boosts from a boost key.
+        """
+        await inter.response.defer()
+        try:
+            success = await update_boosts_for_key(boost_key, boosts, config["boost_keys_database"]["name"], "remove")
+            if success:
+                await inter.response.send_message(f"✅ Successfully removed {boosts} boosts from `{boost_key}`.", ephemeral=True)
+            else:
+                await inter.response.send_message(f"❌ Could not remove boosts from `{boost_key}`. Key may not exist or lacks enough boosts.", ephemeral=True)
+        except ValueError as e:
+            await inter.response.send_message(f"⚠️ Error: {e}", ephemeral=True)
+        except Exception as e:
+            print(e)
 
 def setup(bot):
     if config["boost_keys_database"]["enabled"]:

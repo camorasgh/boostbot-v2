@@ -221,3 +221,37 @@ async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, d
     connection.commit()
     connection.close()
     return True
+
+async def update_boosts_for_key(boost_key: str, boosts: int, database_name: str, operation: str) -> bool:
+    """
+    Updates the number of boosts for a specific boost key.
+
+    :param boost_key: The boost key to update.
+    :param boosts: The number of boosts to add or remove.
+    :param database_name: The name of the SQLite3 database file.
+    :param operation: The operation to perform, either 'add' or 'remove'.
+    :return: True if the operation was successful, False otherwise.
+    """
+    if operation not in ("add", "remove"):
+        raise ValueError("Operation 'update_boosts_for_key' must be 'add' or 'remove'.")
+
+    connection, cursor = await database_connection(database_name)
+
+    if operation == "add":
+        cursor.execute("""
+            UPDATE boost_keys
+            SET redeemable_boosts = redeemable_boosts + ?
+            WHERE boost_key = ?;
+        """, (boosts, boost_key))
+        
+    elif operation == "remove":
+        cursor.execute("""
+            UPDATE boost_keys
+            SET redeemable_boosts = redeemable_boosts - ?
+            WHERE boost_key = ? AND redeemable_boosts >= ?;
+        """, (boosts, boost_key, boosts))
+
+    success = cursor.rowcount > 0
+    connection.commit()
+    connection.close()
+    return success
