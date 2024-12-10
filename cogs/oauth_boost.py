@@ -100,7 +100,7 @@ class TokenManager:
             tokens_to_process = all_tokens[:amount]
             remaining_tokens = all_tokens[amount:]
 
-            with open(f"./input/{file_name}", "r") as file:
+            with open(f"./input/{file_name}", "w") as file:
                 for token in remaining_tokens:
                     file.write(f"{token}\n")
 
