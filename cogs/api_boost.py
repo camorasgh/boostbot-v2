@@ -80,32 +80,39 @@ class Filemanager:
         folder_name = f"./output/{timestamp}-{safe_guild_invite}-({amount}x)"
         os.makedirs(folder_name, exist_ok=True)
 
+        successful_joins = [token for token, success in join_results.items() if success]
+        failed_joins = [token for token, success in join_results.items() if not success]
+
+        successful_boosts = [token for token, success in boost_results.items() if success]
+        failed_boosts = [token for token, success in boost_results.items() if not success]
+
         with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:
-            for token, success in join_results.items():
-                if success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(successful_joins))
 
         with open(os.path.join(folder_name, "failed_joins.txt"), "w") as file:
-            for token, success in join_results.items():
-                if not success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(failed_joins))
 
         with open(os.path.join(folder_name, "successful_boosts.txt"), "w") as file:
-            for token, success in boost_results.items():
-                if success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(successful_boosts))
 
         with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
-            for token, success in boost_results.items():
-                if not success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(failed_boosts))
 
-        if boost_key and user_id:
-            with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+        # boost key usage info
+        with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+            if boost_key and user_id:
                 file.write(f"Boost Key: {boost_key}\nUser ID: {user_id}\nTimestamp: {timestamp}")
-        else:
-            with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
-                file.write(f"None used")
+            else:
+                file.write("None used")
+
+        # summary
+        with open(os.path.join(folder_name, "summary.txt"), "w") as file:
+            file.write(f"Guild Invite: {guild_invite}\n")
+            file.write(f"Total Boosts Attempted: {amount}\n")
+            file.write(f"Successful Joins: {len(successful_joins)}\n")
+            file.write(f"Failed Joins: {len(failed_joins)}\n")
+            file.write(f"Successful Boosts: {len(successful_boosts)}\n")
+            file.write(f"Failed Boosts: {len(failed_boosts)}\n")
 
 
 class Tokenmanager:
