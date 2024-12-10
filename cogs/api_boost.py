@@ -424,10 +424,23 @@ class Tokenmanager:
         if boost_data:
             boost_key, remaining_boosts = boost_data
             boosts_needed_to_remove = remaining_boosts - success_boosts
-            success = database.remove_boost_from_key(boost_key=boost_key,
+            success = await database.remove_boost_from_key(boost_key=boost_key,
                                                      boosts=boosts_needed_to_remove,
-                                                     database_name=config["boost_keys_database"]["name"]
+                                                     database_name=config["boost_keys_database"]["name"],
+                                                     user_id=inter.author.id
                                                      ) # unused now what
+            if success:
+                embed.add_field(
+                    name="Boosts Removal",
+                    value=f"Successfully removed boosts from Boost Key.",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Boost Key Removal",
+                    value=f"Failed to remove boosts from Boost Key.",
+                    inline=False
+                )
 
         
         await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results, boost_key if boost_data else None, inter.author.id if boost_data else None) # Possible error here

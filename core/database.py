@@ -183,9 +183,14 @@ async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name
     connection.commit()
     connection.close()
 
-async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str) -> bool:
+async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str, user_id = None) -> bool:
     """
     Deducts boosts from a boost key with proper transaction handling.
+    Params:
+    boost_key (str): The boost key whose boosts need to be deducted
+    boosts (int): The number of boosts to be deducted
+    database_name (str): The name of the SQLite3 database file
+    user_id (int, optional): The unique ID of the user from whom the boost key will be removed. Defaults to None.
     """
     if not isinstance(boosts, int) or boosts <= 0:
         raise ValueError("Boosts must be a positive integer")
@@ -212,6 +217,17 @@ async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str)
                 SET redeemable_boosts = redeemable_boosts - ?
                 WHERE boost_key = ?;
             """, (boosts, boost_key))
+
+            cursor.execute("""
+                SELECT COUNT(*) 
+                FROM user_boost_keys 
+                WHERE boost_key = ?
+            """, (boost_key,))
+            count = cursor.fetchone()[0]
+            
+            # If no users are associated with the boost key, delete the key from the boost_keys table
+            if count == 0 and user_id is not None:
+                remove_boost_key_from_user(user_id, boost_key, database_name)
 
             connection.commit()
             return True

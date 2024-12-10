@@ -590,7 +590,7 @@ class BoostingModal(disnake.ui.Modal):
                         f"Not Joined: {token_manager.counter.FAILED_JOINS}\n"
                         f"Boosted: {token_manager.counter.BOOSTS}\n"
                         f"Not Boosted: {token_manager.counter.FAILED_BOOSTS}\n"
-                        f"Removed boosts from key: {removed_boosts_success}",
+                        f"Removed boosts from key: {removed_boosts_success}" if removed_boosts_success else None, # Possible Error here
                     ),
                     color=disnake.Color.green(),
                 )
