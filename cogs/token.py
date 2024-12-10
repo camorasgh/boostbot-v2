@@ -36,7 +36,7 @@ class Token(commands.Cog):
 
     @commands.slash_command(name="tokens", description="Token management commands")
     async def tokens(self, inter):
-        pass  # correct placeholder?
+        pass
 
     @tokens.sub_command(name="check", description="Checks all tokens available")
     async def check(self, inter: ApplicationCommandInteraction, token_type: str = commands.Param(choices=["1M", "3M"])):
@@ -59,16 +59,13 @@ class Token(commands.Cog):
             )
             await inter.edit_original_message(embed=embed)
             return
-        print("Starting")
         try:
             with open(file_path, 'r') as file:
                 tokens = [token.strip() for token in file.readlines()]
-            print("Tokens: ", tokens)
             invalid_count, no_nitro_count, results = 0, 0, []
             valid_tokens, nitroless_tokens = [], []
             for token in tokens:
                 result = await self.check_token(self.client, token)
-                print("Result: ", result)
                 if result['status'] == "valid":
                     valid_tokens.append(token)
                     results.append(result)

@@ -70,8 +70,22 @@ class TokenManager:
             client_identifier="chrome112", # type: ignore
             random_tls_extension_order=True
         )
+
         self.Proxies = Proxies()
 
+    async def initialize(self):
+        random_proxy = await self.random_proxy() or None
+        self.client.proxies = {"http": random_proxy, "https": random_proxy}
+    async def random_proxy(self) -> Optional[str]:
+        """
+        Retrieves a random proxy from the loaded proxies list.
+
+        Returns:
+            A random proxy from the list or None if no proxies are loaded.
+        """
+        if self.Proxies.proxies:
+            return await self.Proxies.get_random_proxy(self.bot)
+        return
     async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
         """
         Loads a specified amount of tokens from a file.
@@ -166,7 +180,7 @@ class TokenManager:
         """
         url = f"https://discord.com/api/v9/guilds/{guild_id}/premium/subscriptions"
         try:
-            boost_ids = self.__get_boost_data(token=token)
+            boost_ids = await self.__get_boost_data(token=token)
             if not boost_ids:
                 self.counter.increment_failed_boosts(token)
                 return f"No boost IDs available for token: {token[:10]}..."
@@ -179,12 +193,11 @@ class TokenManager:
                 headers = {"Authorization": token}
 
                 try:
-                    proxy = await self.Proxies.get_random_proxy(self.bot)()
                     response = self.client.put(
                         url=url,
                         headers=headers,
                         json=payload,
-                        proxies={"http": proxy, "https": proxy} if proxy else None,
+                        #proxies={"http": proxy, "https": proxy} if proxy else None,
                     )
 
                     if response.status_code == 201:
@@ -198,7 +211,7 @@ class TokenManager:
                         )
                         self.counter.increment_failed_boosts(token)
                         errors.append(f"Failed to boost token: {token[:10]}, Response: {response_json}")
-                except tls_client.exceptions.TLSClientExeption as e:
+                except tls_client.sessions.TLSClientExeption as e:
                     self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
                     self.counter.increment_failed_boosts(token)
                     errors.append(f"Network error boosting token: {token[:10]}")
@@ -215,7 +228,7 @@ class TokenManager:
                 return f"Boosting failed for token: {token[:10]}"
             return None
 
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             self.counter.increment_failed_boosts(token)
             return f"Network error boosting token: {token[:10]}"
@@ -236,13 +249,12 @@ class TokenManager:
         """
         url = "https://discord.com/api/v9/users/@me/guilds/premium/subscription-slots"
         try:
-            proxy = await self.Proxies.get_random_proxy(self.bot)()
             headers = {"Authorization": token}
 
             response = self.client.get(
                 url=url,
                 headers=headers,
-                proxies={"http": proxy, "https": proxy} if proxy else None,
+                #proxies={"http": proxy, "https": proxy} if proxy else None,
             )
 
             if response.status_code == 200:
@@ -253,7 +265,7 @@ class TokenManager:
             else:
                 self.bot.logger.error(f"Unexpected status code {response.status_code} for token {token[:10]}...")
             return None
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"Network error while retrieving boost data: {str(e)}")
             return None
         except Exception as e:
@@ -333,8 +345,7 @@ class TokenManager:
         """
         try:
             login_url = f"https://discord.com/api/v9/oauth2/authorize?client_id={self.bot.config['client_id']}&response_type=code&redirect_uri={self.bot.config['redirect_uri']}&scope=identify%20guilds.join"
-            proxy = await self.Proxies.get_random_proxy(self.bot)()
-            response = self.client.get(login_url, proxies={"http": proxy, "https": proxy} if proxy else None)
+            response = self.client.get(login_url,)
             
             if response.status_code != 200:
                 self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to request login URL for token {token[:10]}...")
@@ -359,7 +370,7 @@ class TokenManager:
                     "channel_type": 10000  # Example placeholder
                 }
             }
-            response = self.client.post(login_url, json=payload, headers=headers, proxies={"http": proxy, "https": proxy} if proxy else None)
+            response = self.client.post(login_url, json=payload, headers=headers)
             
             if response.status_code == 200:
                 data = response.json()
@@ -374,10 +385,10 @@ class TokenManager:
                 if location_url and "code=" in location_url:
                     code = location_url.split("code=")[1].split("&")[0]
                     access_token, _ = self._do_exchange(code, self.client)
-                    user_data = self.get_user_data(access_token, self.client)
+                    user_data = await self.get_user_data(access_token, self.client)
                     user_data['access_token'] = access_token
                     self.bot.logger.success(f"Authorized: {token[:10]}...")
-                    return user_data
+                    return user_data # type: ignore
                 else:
                     self.bot.logger.error(f"`ERR_UNHANDLED_RESPONSE` Failed to authorize token {token[:10]}...")
                     return None
@@ -385,7 +396,7 @@ class TokenManager:
                 self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to authorize token {token[:10]}... Status: {response.status_code}, Body: {response.text}")
                 return None
 
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during token authorization for {token[:10]}: {str(e)}")
             return None
         except Exception as e:
@@ -414,11 +425,11 @@ class TokenManager:
         }
         headers = {"Content-Type": "application/x-www-form-urlencoded"}
         try:
-            response = session.post(oauth_url, data=payload, headers=headers, proxies={"http": await self.Proxies.get_random_proxy(self.bot)(), "https": await self.Proxies.get_random_proxy(self.bot)()})
+            response = session.post(oauth_url, data=payload, headers=headers, ) #proxies={"http": await self.Proxies.get_random_proxy(self.bot), "https": await self.Proxies.get_random_proxy(self.bot)})
             data = response.json()
 
             return data.get("access_token"), data.get("refresh_token")
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to exchange code for token: {str(e)}")
             return None, None
         except Exception as e:
@@ -440,9 +451,9 @@ class TokenManager:
         users_url = "https://discord.com/api/v10/users/@me"
         headers = {"Authorization": f"Bearer {access_token}"}
         try:
-            response = session.get(users_url, headers=headers, proxies={"http": await self.Proxies.get_random_proxy(self.bot)(), "https": await self.Proxies.get_random_proxy(self.bot)()})
+            response = session.get(users_url, headers=headers, )
             return response.json()
-        except tls_client.exceptions.TLSClientExeption as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Failed to get user data: {str(e)}")
             return None
         except Exception as e:
@@ -457,6 +468,8 @@ class TokenManager:
         Args:
             guild_ids: The guild ID for which results are saved.
             amount: The number of boosts processed.
+            boost_key: The boost key used for the process. [ REDACTED ]
+            user_id: The user ID of the process initiator. [ REDACTED ]
         """
         for guild_id in guild_ids:
             timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -498,7 +511,7 @@ class BoostingModal(disnake.ui.Modal):
         """
         self.bot: commands.InteractionBot = bot
         self.mass_boost: bool = mass_boost
-        self.boost_data = boost_data
+        self.boost_data = boost_data # ??
         components = [
             disnake.ui.TextInput(
                 label="Guild IDs" if mass_boost else "Guild ID",
@@ -544,7 +557,7 @@ class BoostingModal(disnake.ui.Modal):
             if amount % 2 != 0:
                 await inter.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
-            
+            """ # Comment out for now
             if self.boost_data:
                 boost_key, remaining_boosts = self.boost_data
                 if amount > remaining_boosts:
@@ -554,7 +567,7 @@ class BoostingModal(disnake.ui.Modal):
                         ephemeral=True,
                     )
                     return
-
+            """
             # Check if bot is in the guild
             for guild_id in guild_ids:
                 for guild in self.bot.guilds:
@@ -565,10 +578,13 @@ class BoostingModal(disnake.ui.Modal):
                     return
 
             token_manager = TokenManager(self.bot)
+            await token_manager.initialize()
+
             self.bot.logger.info(f"Boosting {amount} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore
-            errors = await token_manager.process_tokens(guild_ids, amount, token_type, boost_data=self.boost_data)
+            errors = await token_manager.process_tokens(guild_ids, amount, token_type)
             config = await load_config()
 
+            """ # Comment out for now
             if self.boost_data:
                 boost_key, remaining_boosts = self.boost_data
                 boosts_needed_to_remove = len(self.success_tokens["boosted"])
@@ -576,8 +592,8 @@ class BoostingModal(disnake.ui.Modal):
                                                         boosts=boosts_needed_to_remove,
                                                         database_name=config["boost_keys_database"]["name"]
                                                         )
-                    
-            token_manager.save_results(guild_ids, amount,  boost_key if self.boost_data else None, inter.author.id if self.boost_data else None) # Possible Error here
+            """
+            token_manager.save_results(guild_ids, amount) # Comment for now (boost_key if self.boost_data else None, inter.author.id if self.boost_data else None) # Possible Error here
 
             if errors:
                 error_msg = "\n".join(errors)
@@ -590,7 +606,7 @@ class BoostingModal(disnake.ui.Modal):
                         f"Not Joined: {token_manager.counter.FAILED_JOINS}\n"
                         f"Boosted: {token_manager.counter.BOOSTS}\n"
                         f"Not Boosted: {token_manager.counter.FAILED_BOOSTS}\n"
-                        f"Removed boosts from key: {removed_boosts_success}" if removed_boosts_success else None, # Possible Error here
+                        #f"Removed boosts from key: {removed_boosts_success}" if removed_boosts_success else None, # Possible Error here
                     ),
                     color=disnake.Color.green(),
                 )
@@ -604,6 +620,9 @@ class BoostingModal(disnake.ui.Modal):
                     await logchannel.send(embed=embed)
                 await inter.followup.send(embed=embed)
         except Exception as e:
+            if "token_manager" in locals():
+                await token_manager.initialize()
+
             self.bot.logger.error(str(e)) # type: ignore
             await inter.followup.send("`ERR_UNKNOWN_EXCEPTION` An error occurred while boosting.", ephemeral=True)
 

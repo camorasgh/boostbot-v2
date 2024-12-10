@@ -1,3 +1,5 @@
+import asyncio
+
 import colorama
 import ctypes
 import datetime
@@ -281,7 +283,7 @@ class Bot(commands.InteractionBot): # no message commands
         await super().process_commands(message) # type: ignore
 
 
-vortex = Bot()
+vortex = Bot(test_guilds=[1297982536294731897])
 
 
 @vortex.listen("on_ready")
@@ -329,7 +331,7 @@ async def on_disconnect_listener() -> None:
 @vortex.event
 async def on_application_command(inter: disnake.ApplicationCommandInteraction) -> None:
     """
-    Once an user uses a slash command, this function is called.
+    Once a user uses a slash command, this function is called.
     """
     bucket = vortex.global_cooldown.get_bucket(inter) # type: ignore
     retry_after = bucket.update_rate_limit()
@@ -352,4 +354,20 @@ if __name__ == "__main__":
         raise Exception("Improper token has been passed")
     except KeyboardInterrupt:
         sys.exit()
+
+import atexit
+def on_close():
+    try:
+        vortex.close()
+    except Exception as e:
+        print(f"Error on close: {e}")
+    try:
+        for task in asyncio.all_tasks():
+            task.cancel()
+
+    except Exception as e:
+        print(f"Error on close: {e}")
+
+
+atexit.register(on_close)
 

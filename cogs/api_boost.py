@@ -416,7 +416,7 @@ class Tokenmanager:
         embed.add_field(
             name="Boosting Results",
             value=f"**Successful Boosts:** {success_boosts}\n"
-                  f"**Failed Boosts:** {failed_boosts}",
+                  f"**Failed Boosts:** {failed_boosts} (Tokens: {failed_boosts // 2}",
             inline=False
         )
         config = await load_config()
