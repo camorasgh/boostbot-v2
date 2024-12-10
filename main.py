@@ -306,8 +306,7 @@ async def on_ready_listener() -> None:
     Logger.info(f"Loaded {cogs_results['loaded']} cogs")
     if cogs_results.get('not_loaded'):
         Logger.error(f"Failed to load {cogs_results['not_loaded']} cogs")
-        for error in cogs_results['errors']:
-            Logger.error(error)
+        Logger.error(cogs_results['errors'])
     Logger.info(f"Registered Commands: {len(vortex.all_slash_commands)}")
 
 
