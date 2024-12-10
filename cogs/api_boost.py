@@ -65,6 +65,7 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
+        
     @staticmethod
     async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict, boost_key = None, user_id = None) -> None:
         """
