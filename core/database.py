@@ -1,257 +1,356 @@
 import sqlite3
+from contextlib import asynccontextmanager
 from typing import Tuple, List, Optional
 
 
-async def database_connection(database_name : str):
+class DatabaseError(Exception):
+    """Custom exception for database operations"""
+    pass
+
+
+@asynccontextmanager
+async def database_connection(database_name: str):
     """
-    Establishes a connection for the sqlite3 database
-    Params:
-        :param database_name: Name of the database
-    Returns:
-        connection: Sqlite3 connection to the database
-        cursor:     Sqlite3 connection cursor to the database
+    Async context manager for database connections to ensure proper cleanup.
     """
-    connection = sqlite3.connect(database=database_name)
-    cursor = connection.cursor()
-    return connection, cursor
+    connection = None
+    try:
+        connection = sqlite3.connect(database=database_name)
+        connection.execute("PRAGMA foreign_keys = ON")
+        cursor = connection.cursor()
+        yield connection, cursor
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Database connection failed: {e}")
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 async def setup_database(database_name: str) -> bool:
     """
-    Sets up the database with the necessary tables for managing users and boost keys.
-    
-    :param database_name: Name of the database file.
-    :return: True if setup is successful, False otherwise.
+    Sets up the database with necessary tables for managing users and boost keys.
+
+    Args:
+        database_name (str): Name of the database file
+
+    Returns:
+        bool: True if setup successful, False otherwise
+
+    Raises:
+        DatabaseError: If table creation fails
     """
     try:
-        connection, cursor = await database_connection(database_name)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                user_id INTEGER PRIMARY KEY
-            );
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS boost_keys (
-                boost_key TEXT PRIMARY KEY,
-                redeemable_boosts INTEGER NOT NULL,
-                api_used TEXT
-            );
-        """)
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    user_id INTEGER PRIMARY KEY
+                );
+            """)
 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_boost_keys (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                boost_key TEXT NOT NULL,
-                FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
-                FOREIGN KEY (boost_key) REFERENCES boost_keys (boost_key) ON DELETE CASCADE
-            );
-        """)
-        
-        connection.commit()
-        connection.close()
-        return True
-    except Exception as e:
-        print(f"Error setting up database: {e}")
-        return False
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS boost_keys (
+                    boost_key TEXT PRIMARY KEY,
+                    redeemable_boosts INTEGER NOT NULL CHECK (redeemable_boosts >= 0),
+                    api_used TEXT
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_boost_keys (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    boost_key TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
+                    FOREIGN KEY (boost_key) REFERENCES boost_keys (boost_key) ON DELETE CASCADE,
+                    UNIQUE(user_id, boost_key)
+                );
+            """)
+
+            connection.commit()
+            return True
+
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to setup database: {e}")
 
 
-async def add_user(user_id: int, database_name: str):
+async def add_user(user_id: int, database_name: str) -> bool:
     """
     Adds a user to the database if they don't already exist.
 
-    :param user_id: The unique ID of the user to add.
-    :param database_name: The name of the SQLite3 database file.
+    Args:
+        user_id (int): The unique ID of the user to add
+        database_name (str): The database file name
+
+    Returns:
+        bool: True if user added or already exists, False on failure
+
+    Raises:
+        DatabaseError: If operation fails
     """
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?);", (user_id,))
-    connection.commit()
-    connection.close()
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?);", (user_id,))
+            connection.commit()
+            return True
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to add user: {e}")
 
 
-async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name : str, api_used: Optional[str] = None):
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("""
-        INSERT OR IGNORE INTO boost_keys (boost_key, redeemable_boosts, api_used)
-        VALUES (?, ?, ?);
-    """, (boost_key, redeemable_boosts, api_used))
-    connection.commit()
-    connection.close()
-
-
-async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name : str):
+async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name: str,
+                        api_used: Optional[str] = None) -> bool:
     """
-    Assigns a boost key to a user. This action will create a record in the user_boost_keys table.
+    Adds a new boost key to the database.
 
-    :param user_id: The unique ID of the user to whom the boost key will be assigned.
-    :param boost_key: The boost key to assign to the user.
-    :param database_name: The name of the SQLite3 database file.
+    Args:
+        boost_key (str): The boost key to add
+        redeemable_boosts (int): Number of boosts available
+        database_name (str): The database file name
+        api_used (Optional[str]): API identifier if applicable
+
+    Returns:
+        bool: True if key added successfully, False otherwise
+
+    Raises:
+        ValueError: If invalid input provided
+        DatabaseError: If operation fails
     """
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("""
-        INSERT INTO user_boost_keys (user_id, boost_key)
-        VALUES (?, ?);
-    """, (user_id, boost_key))
-    connection.commit()
-    connection.close()
+    if not isinstance(redeemable_boosts, int) or redeemable_boosts < 0:
+        raise ValueError("Redeemable boosts must be a non-negative integer")
+
+    if not boost_key or not isinstance(boost_key, str):
+        raise ValueError("Invalid boost key format")
+
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("""
+                INSERT OR IGNORE INTO boost_keys (boost_key, redeemable_boosts, api_used)
+                VALUES (?, ?, ?);
+            """, (boost_key, redeemable_boosts, api_used))
+            connection.commit()
+            return cursor.rowcount > 0
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to add boost key: {e}")
 
 
-async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name : str):
+async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: str) -> bool:
     """
-    Removes a boost key from a user. If no users are associated with the boost key, the key is deleted from the boost_keys table.
+    Assigns a boost key to a user.
 
-    :param user_id: The unique ID of the user from whom the boost key will be removed.
-    :param boost_key: The boost key to remove from the user.
-    :param database_name: The name of the SQLite3 database file.
+    Args:
+        user_id (int): User ID to assign the key to
+        boost_key (str): Boost key to assign
+        database_name (str): The database file name
+
+    Returns:
+        bool: True if assignment successful, False otherwise
+
+    Raises:
+        DatabaseError: If operation fails
     """
-    connection, cursor = await database_connection(database_name)
-
-    cursor.execute("""
-        DELETE FROM user_boost_keys
-        WHERE user_id = ? AND boost_key = ?;
-    """, (user_id, boost_key))
-
-    cursor.execute("""
-        SELECT COUNT(*) FROM user_boost_keys WHERE boost_key = ?;
-    """, (boost_key,))
-    count = cursor.fetchone()[0]
-    if count == 0:
-        cursor.execute("DELETE FROM boost_keys WHERE boost_key = ?;", (boost_key,))
-
-    connection.commit()
-    connection.close()
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("""
+                INSERT INTO user_boost_keys (user_id, boost_key)
+                VALUES (?, ?);
+            """, (user_id, boost_key))
+            connection.commit()
+            return True
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to assign boost key: {e}")
 
 
-async def get_boost_keys_for_user(user_id: int, database_name : str) -> List[Tuple[str, int]]:
+async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str) -> bool:
     """
-    Retrieves all boost keys assigned to a user along with the number of redeemable boosts left.
-
-    :param user_id: The unique ID of the user whose boost keys are being fetched.
-    :param database_name: The name of the SQLite3 database file.
-    :return: A list of tuples, where each tuple contains a boost key and the number of redeemable boosts.
+    Deducts boosts from a boost key with proper transaction handling.
     """
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("""
-        SELECT bk.boost_key, bk.redeemable_boosts
-        FROM boost_keys bk
-        INNER JOIN user_boost_keys ubk ON bk.boost_key = ubk.boost_key
-        WHERE ubk.user_id = ?;
-    """, (user_id,))
-    keys = cursor.fetchall()
-    connection.close()
-    return keys
+    if not isinstance(boosts, int) or boosts <= 0:
+        raise ValueError("Boosts must be a positive integer")
+
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("BEGIN TRANSACTION")
+
+            # Check current boosts
+            cursor.execute("""
+                SELECT redeemable_boosts 
+                FROM boost_keys 
+                WHERE boost_key = ?
+            """, (boost_key,))
+
+            result = cursor.fetchone()
+            if not result or result[0] < boosts:
+                cursor.execute("ROLLBACK")
+                return False
+
+            # Update boosts
+            cursor.execute("""
+                UPDATE boost_keys
+                SET redeemable_boosts = redeemable_boosts - ?
+                WHERE boost_key = ?;
+            """, (boosts, boost_key))
+
+            connection.commit()
+            return True
+
+    except sqlite3.Error as e:
+        if connection:
+            cursor.execute("ROLLBACK")
+        raise DatabaseError(f"Failed to remove boosts: {e}")
 
 
-async def check_user_has_valid_boost_key(user_id: int, database_name : str) -> Optional[Tuple[str, int]]:
+
+async def get_boost_keys_for_user(user_id: int, database_name: str) -> List[Tuple[str, int]]:
     """
-    Checks if a user has a valid boost key with at least one boost remaining.
+    Retrieves all boost keys assigned to a user.
 
-    :param user_id: The ID of the user to check.
-    :return: The boost key and remaining boosts if valid, None otherwise.
+    Args:
+        user_id (int): User ID to get keys for
+        database_name (str): The database file name
+
+    Returns:
+        List[Tuple[str, int]]: List of (boost_key, redeemable_boosts) tuples
+
+    Raises:
+        DatabaseError: If operation fails
     """
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("""
-        SELECT bk.boost_key, bk.redeemable_boosts
-        FROM boost_keys bk
-        INNER JOIN user_boost_keys ubk ON bk.boost_key = ubk.boost_key
-        WHERE ubk.user_id = ? AND bk.redeemable_boosts > 0
-        LIMIT 1;
-    """, (user_id,))
-    result = cursor.fetchone()
-    connection.close()
-    return result
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("""
+                SELECT bk.boost_key, bk.redeemable_boosts
+                FROM boost_keys bk
+                INNER JOIN user_boost_keys ubk ON bk.boost_key = ubk.boost_key
+                WHERE ubk.user_id = ?;
+            """, (user_id,))
+            return cursor.fetchall()
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to get boost keys: {e}")
 
 
-async def remove_boost_from_key(boost_key: str, boosts : int, database_name : str) -> bool:
+async def check_user_has_valid_boost_key(user_id: int, database_name: str) -> Optional[Tuple[str, int]]:
     """
-    Deducts one boost from the specified boost key.
+    Checks if a user has a valid boost key with remaining boosts.
 
-    :param boost_key: The boost key to update.
-    :param boosts: The amount of boosts to remove
-    :return: True if deduction was successful, False otherwise.
+    Args:
+        user_id (int): User ID to check
+        database_name (str): The database file name
+
+    Returns:
+        Optional[Tuple[str, int]]: (boost_key, remaining_boosts) if found, None otherwise
+
+    Raises:
+        DatabaseError: If operation fails
     """
-    connection, cursor = await database_connection(database_name)
-    cursor.execute("""
-        UPDATE boost_keys
-        SET redeemable_boosts = redeemable_boosts - ?
-        WHERE boost_key = ? AND redeemable_boosts > 0;
-    """, (boosts, boost_key))
-    success = cursor.rowcount > 0
-    connection.commit()
-    connection.close()
-    return success
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("""
+                SELECT bk.boost_key, bk.redeemable_boosts
+                FROM boost_keys bk
+                INNER JOIN user_boost_keys ubk ON bk.boost_key = ubk.boost_key
+                WHERE ubk.user_id = ? AND bk.redeemable_boosts > 0
+                LIMIT 1;
+            """, (user_id,))
+            return cursor.fetchone()
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Failed to check boost key: {e}")
+
+
+
 
 
 async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, database_name: str) -> bool:
     """
-    Transfers a boost key from one user (sender) to another user (receiver) in the database.
-
-    This function checks if the sender owns the specified boost key. If the sender does not own the key,
-    the transfer is aborted and `False` is returned. Otherwise, the boost key is transferred to the receiver,
-    and `True` is returned.
-
-    :param sender_id: The unique ID of the user sending the boost key.
-    :param receiver_id: The unique ID of the user receiving the boost key.
-    :param boost_key: The boost key to be transferred.
-    :param database_name: The name of the SQLite3 database file.
-    :return: `True` if the transfer was successful, `False` if the sender does not own the key.
+    Transfers a boost key between users with proper transaction handling.
     """
+    if sender_id == receiver_id:
+        raise ValueError("Sender and receiver cannot be the same user")
 
-    connection, cursor = await database_connection(database_name)
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("BEGIN TRANSACTION")
 
-    # sender owns key check
-    cursor.execute("""
-        SELECT COUNT(*)
-        FROM user_boost_keys
-        WHERE user_id = ? AND boost_key = ?;
-    """, (sender_id, boost_key))
-    if cursor.fetchone()[0] == 0:
-        connection.close()
-        return False  # sender does not own the key
+            # Verify sender owns key
+            cursor.execute("""
+                SELECT bk.redeemable_boosts
+                FROM boost_keys bk
+                JOIN user_boost_keys ubk ON bk.boost_key = ubk.boost_key
+                WHERE ubk.user_id = ? AND bk.boost_key = ?
+            """, (sender_id, boost_key))
 
-    # boost key to receiver
-    cursor.execute("""
-        UPDATE user_boost_keys
-        SET user_id = ?
-        WHERE user_id = ? AND boost_key = ?;
-    """, (receiver_id, sender_id, boost_key))
+            if not cursor.fetchone():
+                cursor.execute("ROLLBACK")
+                return False
 
-    connection.commit()
-    connection.close()
-    return True
+            # Verify receiver exists
+            cursor.execute("SELECT 1 FROM users WHERE user_id = ?", (receiver_id,))
+            if not cursor.fetchone():
+                cursor.execute("ROLLBACK")
+                return False
+
+            # Transfer key
+            cursor.execute("""
+                UPDATE user_boost_keys
+                SET user_id = ?
+                WHERE user_id = ? AND boost_key = ?
+            """, (receiver_id, sender_id, boost_key))
+
+            connection.commit()
+            return True
+
+    except sqlite3.Error as e:
+        if connection:
+            cursor.execute("ROLLBACK")
+        raise DatabaseError(f"Failed to transfer boost key: {e}")
+
 
 async def update_boosts_for_key(boost_key: str, boosts: int, database_name: str, operation: str) -> bool:
     """
-    Updates the number of boosts for a specific boost key.
+    Updates the number of boosts for a key.
 
-    :param boost_key: The boost key to update.
-    :param boosts: The number of boosts to add or remove.
-    :param database_name: The name of the SQLite3 database file.
-    :param operation: The operation to perform, either 'add' or 'remove'.
-    :return: True if the operation was successful, False otherwise.
+    Args:
+        boost_key (str): Boost key to update
+        boosts (int): Number of boosts to add/remove
+        database_name (str): The database file name
+        operation (str): Either 'add' or 'remove'
+
+    Returns:
+        bool: True if update successful, False otherwise
+
+    Raises:
+        ValueError: If invalid operation or boosts value
+        DatabaseError: If operation fails
     """
     if operation not in ("add", "remove"):
-        raise ValueError("Operation 'update_boosts_for_key' must be 'add' or 'remove'.")
+        raise ValueError("Operation must be 'add' or 'remove'")
 
-    connection, cursor = await database_connection(database_name)
+    if not isinstance(boosts, int) or boosts < 0:
+        raise ValueError("Boosts must be a non-negative integer")
 
-    if operation == "add":
-        cursor.execute("""
-            UPDATE boost_keys
-            SET redeemable_boosts = redeemable_boosts + ?
-            WHERE boost_key = ?;
-        """, (boosts, boost_key))
-        
-    elif operation == "remove":
-        cursor.execute("""
-            UPDATE boost_keys
-            SET redeemable_boosts = redeemable_boosts - ?
-            WHERE boost_key = ? AND redeemable_boosts >= ?;
-        """, (boosts, boost_key, boosts))
+    try:
+        async with database_connection(database_name) as (connection, cursor):
+            cursor.execute("BEGIN TRANSACTION")
 
-    success = cursor.rowcount > 0
-    connection.commit()
-    connection.close()
-    return success
+            if operation == "add":
+                cursor.execute("""
+                    UPDATE boost_keys
+                    SET redeemable_boosts = redeemable_boosts + ?
+                    WHERE boost_key = ?;
+                """, (boosts, boost_key))
+
+            else:  # remove
+                cursor.execute("""
+                    UPDATE boost_keys
+                    SET redeemable_boosts = redeemable_boosts - ?
+                    WHERE boost_key = ? AND redeemable_boosts >= ?;
+                """, (boosts, boost_key, boosts))
+
+            success = cursor.rowcount > 0
+            if success:
+                connection.commit()
+            else:
+                connection.rollback()
+            return success
+
+    except sqlite3.Error as e:
+        if connection:
+            connection.rollback()
+        raise DatabaseError(f"Failed to update boosts: {e}")
