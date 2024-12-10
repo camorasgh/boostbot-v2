@@ -337,7 +337,7 @@ class Tokenmanager:
                 else:
                     response_json = r.json()
                     if "Must wait for premium server subscription cooldown to expire" in response_json.get("message", ""):
-                        self.bot.logger.error(f"`ERR_COOLDOWN` Boosts Cooldown {token[:10]}")
+                        self.bot.logger.error(f"`ERR_COOLDOWN` Boosts Cooldown for Token {token[:10]}")
                         break
                     self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
             return boosted
