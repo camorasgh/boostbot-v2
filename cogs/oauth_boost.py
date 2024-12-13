@@ -86,45 +86,69 @@ class TokenManager:
         if self.Proxies.proxies:
             return await self.Proxies.get_random_proxy(self.bot)
         return
-    async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
+
+    @staticmethod
+    def token_amount(token_type: str):
         """
-        Loads a specified amount of tokens from a file.
+        Load a specified number of tokens from a file.
 
         Args:
-            :param amount: The number of tokens to load.
-            :param token_type: Type of the token (1m/3m).
+            token_type (str):   The token type to load (1m/3m)
 
         Returns:
-            An error message if loading fails, or None if successful.
+            int: The number of tokens in the file.
+
         """
-        amount = amount // 2
+        tokens = []
         if token_type == "1m":
             file_name = "1m_tokens.txt"
         elif token_type == "3m":
             file_name = "3m_tokens.txt"
         else:
-            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")#
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")
+
+        with open(f"./input/{file_name}", "r") as file:
+            token_list = file.readlines()
+            for token in token_list:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+
+                if token:  # if token not empty string
+                    tokens.append(token)
+
+        available_tokens = len(tokens) * 2
+        return available_tokens
+    async def load_tokens_all(self, token_type: str) -> Optional[str]:
+        """
+        Loads all tokens from a file.
+
+        Args:
+            :param token_type: Type of the token (1m/3m).
+
+        Returns:
+            An error message if loading fails, or None if successful.
+        """
+        if token_type == "1m":
+            file_name = "1m_tokens.txt"
+        elif token_type == "3m":
+            file_name = "3m_tokens.txt"
+        else:
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")
         try:
             with open(f"./input/{file_name}", "r") as file:
-                all_tokens = [line.strip() for line in file if line.strip()]
-
-            available_tokens = len(all_tokens) * 2
-            if available_tokens < amount:
-                raise Exception(f"Insufficient tokens. Available Boosts: {available_tokens}, Required: {amount}")
-            tokens_to_process = all_tokens[:amount]
-            remaining_tokens = all_tokens[amount:]
-
-            with open(f"./input/{file_name}", "w") as file:
-                for token in remaining_tokens:
-                    file.write(f"{token}\n")
-
-            self.tokens = tokens_to_process
+                self.tokens = [line.strip() for line in file if line.strip()]
             return None
         except FileNotFoundError:
             return "`ERR_FILE_NOT_FOUND` tokens.txt file not found."
         except Exception as e:
             return f"`ERR_UNKNOWN_EXCEPTION` Error loading tokens: {str(e)}"
-
     async def join_guild(self, user_id: str, access_token: str, guild_id: str, token: str) -> Optional[str]:
         """
         Attempts to add a user to a specified guild.
@@ -507,6 +531,8 @@ class BoostingModal(disnake.ui.Modal):
         self.bot: commands.InteractionBot = bot
         self.mass_boost: bool = mass_boost
         self.boost_data = boost_data # ??
+        available_boosts_1m = TokenManager.token_amount("1m")
+        available_boosts_3m = TokenManager.token_amount("3m")
         components = [
             disnake.ui.TextInput(
                 label="Guild IDs" if mass_boost else "Guild ID",
@@ -518,7 +544,7 @@ class BoostingModal(disnake.ui.Modal):
             ),
             disnake.ui.TextInput(
                 label="Amount",
-                placeholder="The amount of boosts for each Guild" if mass_boost else "The amount of boosts",
+                placeholder="The amount of boosts for each Guild" if mass_boost else "The amount of boosts" + f" (Available: 1m: {available_boosts_1m}, 3m: {available_boosts_3m})",
                 custom_id="boosting.amount",
                 style=disnake.TextInputStyle.short,
                 min_length=1,

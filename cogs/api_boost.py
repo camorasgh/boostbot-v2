@@ -65,7 +65,44 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
-        
+    @staticmethod
+    def token_amount(token_type: str):
+        """
+        Load a specified number of tokens from a file.
+
+        Args:
+            token_type (str):   The token type to load (1m/3m)
+
+        Returns:
+            int: The number of tokens in the file.
+
+        """
+        tokens = []
+        if token_type == "1m":
+            file_name = "1m_tokens.txt"
+        elif token_type == "3m":
+            file_name = "3m_tokens.txt"
+        else:
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")
+
+        with open(f"./input/{file_name}", "r") as file:
+            token_list = file.readlines()
+            for token in token_list:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+
+                if token:  # if token not empty string
+                    tokens.append(token)
+
+        available_tokens = len(tokens) * 2
+        return available_tokens
     @staticmethod
     async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict, boost_key = None, user_id = None) -> None:
         """
@@ -416,7 +453,7 @@ class Tokenmanager:
         embed.add_field(
             name="Boosting Results",
             value=f"**Successful Boosts:** {success_boosts}\n"
-                  f"**Failed Boosts:** {failed_boosts} (Tokens: {failed_boosts // 2}",
+                  f"**Failed Boosts:** {failed_boosts} (Tokens: {failed_boosts // 2})",
             inline=False
         )
         config = await load_config()
@@ -442,7 +479,12 @@ class Tokenmanager:
                     inline=False
                 )
 
-        
+        try:
+            # Clean guild invite from either discord.gg, https etc, so get only the code
+            guild_invite = re.search(r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$", guild_invite).group(2)
+        except AttributeError:
+            pass
+
         await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results, boost_key if boost_data else None, inter.author.id if boost_data else None) # Possible error here
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
@@ -488,6 +530,8 @@ class BoostingModal(ui.Modal):
     def __init__(self, bot: commands.InteractionBot, boost_data = None) -> None:
         self.bot = bot
         self.boost_data = boost_data
+        available_1m_tokens = Filemanager.token_amount("1m")
+        available_3m_tokens = Filemanager.token_amount("3m")
         components = [
             ui.TextInput(
                 label="Guild Invite",
@@ -499,7 +543,7 @@ class BoostingModal(ui.Modal):
             ),
             ui.TextInput(
                 label="Amount",
-                placeholder="The amount of boosts",
+                placeholder=f"The amount of boosts (Available: 1m: {available_1m_tokens}, 3m: {available_1m_tokens}",
                 custom_id="boosting.amount",
                 style=TextInputStyle.short,
                 min_length=1,
