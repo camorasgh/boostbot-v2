@@ -97,7 +97,7 @@ class TokenManager:
         Returns:
             An error message if loading fails, or None if successful.
         """
-        
+        amount = amount // 2
         if token_type == "1m":
             file_name = "1m_tokens.txt"
         elif token_type == "3m":
@@ -345,11 +345,6 @@ class TokenManager:
         """
         try:
             login_url = f"https://discord.com/api/v9/oauth2/authorize?client_id={self.bot.config['client_id']}&response_type=code&redirect_uri={self.bot.config['redirect_uri']}&scope=identify%20guilds.join"
-            response = self.client.get(login_url,)
-            
-            if response.status_code != 200:
-                self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to request login URL for token {token[:10]}...")
-                return None
 
             headers = {
                 "Authorization": token,
@@ -384,7 +379,7 @@ class TokenManager:
 
                 if location_url and "code=" in location_url:
                     code = location_url.split("code=")[1].split("&")[0]
-                    access_token, _ = self._do_exchange(code, self.client)
+                    access_token, _ = await self._do_exchange(code, self.client)
                     user_data = await self.get_user_data(access_token, self.client)
                     user_data['access_token'] = access_token
                     self.bot.logger.success(f"Authorized: {token[:10]}...")
@@ -580,7 +575,7 @@ class BoostingModal(disnake.ui.Modal):
             token_manager = TokenManager(self.bot)
             await token_manager.initialize()
 
-            self.bot.logger.info(f"Boosting {amount} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore
+            self.bot.logger.info(f"Boosting {int(amount / 2)} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore
             errors = await token_manager.process_tokens(guild_ids, amount, token_type)
             config = await load_config()
 
