@@ -104,9 +104,9 @@ class Proxies:
                  is returned as is.
 
         Example:
-            >>> await Proxies.format_proxy('127.0.0.1:8080')
+        #  >>> await Proxies.format_proxy('127.0.0.1:8080')
             return '127.0.0.1:8080'
-            >>> await Proxies.format_proxy('user:pass@127.0.0.1:8080')
+           # >>> await Proxies.format_proxy('user:pass@127.0.0.1:8080')
             return 'user:pass@127.0.0.1:8080' | aka 'auth@ip_port'
         """
         if '@' in proxy:
