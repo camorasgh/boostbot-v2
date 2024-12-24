@@ -283,7 +283,7 @@ class Bot(commands.InteractionBot): # no message commands
         await super().process_commands(message) # type: ignore
 
 
-vortex = Bot(test_guilds=[1297982536294731897])
+vortex = Bot(test_guilds=[1297982536294731897]) # Remove test_guilds parameter or add it to config.json
 
 
 @vortex.listen("on_ready")

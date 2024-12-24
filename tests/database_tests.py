@@ -1,8 +1,6 @@
 import asyncio
 import os
 import unittest
-from typing import Optional
-import sqlite3
 
 from core.database import (
     setup_database,
@@ -14,7 +12,6 @@ from core.database import (
     remove_boost_from_key,
     transfer_boost_key,
     update_boosts_for_key,
-    DatabaseError
 )
 
 

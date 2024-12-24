@@ -328,7 +328,29 @@ class TokenManager:
             errors.append(f"Processing error for token {token[:10]}...: {str(e)}")
 
         return errors
+    async def load_tokens(self, amount: int, token_type: str) -> Optional[str]:
+        """
+        Loads a specified number of tokens from a file.
 
+        Args:
+            amount: The number of tokens to load.
+            token_type: Type of token (1m/3m).
+
+        Returns:
+            An error message if loading fails, or None if successful.
+        """
+        try:
+            error = await self.load_tokens_all(token_type)
+            if error:
+                return error
+
+            if amount > len(self.tokens):
+                return f"`ERR_INSUFFICIENT_TOKENS` Not enough tokens available. Requested: {amount}, Available: {len(self.tokens)}"
+
+            self.tokens = self.tokens[:amount]
+            return None
+        except Exception as e:
+            return f"`ERR_UNKNOWN_EXCEPTION` Error loading tokens: {str(e)}"
     async def process_tokens(self, guild_ids: List[str], amount: int, token_type: str) -> List[str]:
         """
         Processes multiple tokens to join and boost a guild.
@@ -569,6 +591,7 @@ class BoostingModal(disnake.ui.Modal):
             inter: The interaction object from the modal submission.
         """
         await inter.response.defer(ephemeral=True)
+        token_manager = TokenManager(self.bot)
         try:
             guild_id = inter.text_values['boosting.guild_id']
             guild_ids = [gid.strip() for gid in guild_id.split(",")] if self.mass_boost else [guild_id]
@@ -598,7 +621,7 @@ class BoostingModal(disnake.ui.Modal):
                     await inter.followup.send("`ERR_NOT_IN_GUILD` Bot is not in the specified guild.", ephemeral=True)
                     return
 
-            token_manager = TokenManager(self.bot)
+
             await token_manager.initialize()
 
             self.bot.logger.info(f"Boosting {int(amount / 2)} users to guilds {guild_ids}" if self.mass_boost else f"Boosting {amount} users to guild {guild_id}") # type: ignore

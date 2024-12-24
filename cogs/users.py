@@ -46,11 +46,13 @@ class Users(commands.Cog):
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
+        # noinspection PyUnusedLocal,PyBroadException
         try:
             user_id = user.id
-        except Exception:
+        except AttributeError:
             user_id = user
-
+        except Exception as e:
+            user_id = user
         user_id = str(user_id)
         user_id = user_id.replace('<', '').replace('>', '').replace('@', '')
         print(user_id)
@@ -64,10 +66,10 @@ class Users(commands.Cog):
                             redeemable_boosts=redeemable_boosts,
                             database_name=database_name
                             )
-        await add_user(user_id=user_id, 
+        await add_user(user_id=user_id, # type: ignore
                        database_name=database_name
                       )
-        await assign_boost_key_to_user(user_id=user_id, 
+        await assign_boost_key_to_user(user_id=user_id,  # type: ignore
                                         boost_key=boost_key, 
                                         database_name=database_name
                                       )

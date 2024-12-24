@@ -112,6 +112,8 @@ class Filemanager:
             amount: The number of boosts processed.
             join_results: The results of the joining attempts (successful and failed).
             boost_results: The results of the boosting attempts (successful and failed).
+            boost_key: The boost key used for the operation.
+            user_id: The user ID of the person who used the boost key.
         """
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         safe_guild_invite = re.sub(r'[<>:"/\\|?*]', '_', guild_invite) # in order to avoid syntax for file names / folder names
@@ -457,7 +459,7 @@ class Tokenmanager:
             inline=False
         )
         config = await load_config()
-
+        boost_key = None
         if boost_data:
             boost_key, remaining_boosts = boost_data
             boosts_needed_to_remove = remaining_boosts - success_boosts
@@ -543,7 +545,7 @@ class BoostingModal(ui.Modal):
             ),
             ui.TextInput(
                 label="Amount",
-                placeholder=f"The amount of boosts (Available: 1m: {available_1m_tokens}, 3m: {available_1m_tokens}",
+                placeholder=f"The amount of boosts (Available: 1m: {available_1m_tokens}, 3m: {available_3m_tokens}",
                 custom_id="boosting.amount",
                 style=TextInputStyle.short,
                 min_length=1,

@@ -1,11 +1,9 @@
-import asyncio
 import datetime
 import disnake
 import json
 import os
-import random
 import tls_client
-from typing import Tuple, Any
+from typing import Tuple
 
 from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
@@ -278,6 +276,7 @@ class Token(commands.Cog):
             try:
                 # Get a random proxy
                 proxy = await prx.get_random_proxy(self.bot)
+                # noinspection HttpUrlsUsage
                 proxy = {
                     "http": "http://{}".format(proxy),
                     "https": "https://{}".format(proxy)
