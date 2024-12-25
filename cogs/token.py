@@ -59,9 +59,24 @@ class Token(commands.Cog):
             return
         try:
             with open(file_path, 'r') as file:
-                tokens = [token.strip() for token in file.readlines()]
+                raw_tokens = [token.strip() for token in file.readlines()]
             invalid_count, no_nitro_count, results = 0, 0, []
             valid_tokens, nitroless_tokens = [], []
+            tokens = []
+            for token in raw_tokens:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token format
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+
+                if token:  # Only add non-empty tokens
+                    tokens.append(token)
+
             for token in tokens:
                 result = await self.check_token(self.client, token)
                 if result['status'] == "valid":
