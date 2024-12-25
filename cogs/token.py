@@ -383,7 +383,12 @@ class Token(commands.Cog):
         await inter.response.defer()
 
         stock_info = {}
-        for stock_type, file_path in self.file_paths.items():
+        stock_type = None
+        for file_path in self.file_paths.items():
+            if file_path == "./input/1m_tokens.txt":
+                stock_type = "1m"
+            elif file_path == "./input/3m_tokens.txt":
+                stock_type = "3m"
             if os.path.exists(file_path):
                 try:
                     with open(file_path, "r") as file:
