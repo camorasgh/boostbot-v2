@@ -384,7 +384,7 @@ class Token(commands.Cog):
 
         stock_info = {}
         stock_type = None
-        for file_path in self.file_paths.items():
+        for file_path in self.file_paths:
             if file_path == "./input/1m_tokens.txt":
                 stock_type = "1m"
             elif file_path == "./input/3m_tokens.txt":
