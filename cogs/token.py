@@ -378,6 +378,38 @@ class Token(commands.Cog):
                 )
                 await inter.response.send_message(embed=embed_dm_fail, ephemeral=True)
 
+    @tokens.sub_command(name="stock", description="Displays the current token stock for 1M and 3M tokens")
+    async def stock(self, inter: ApplicationCommandInteraction):
+        await inter.response.defer()
+
+        stock_info = {}
+        for stock_type, file_path in self.file_paths.items():
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "r") as file:
+                        tokens = [line.strip() for line in file.readlines() if line.strip()]
+                        stock_info[stock_type] = len(tokens)
+                except Exception as e:
+                    stock_info[stock_type] = f"Error: {str(e)}"
+            else:
+                stock_info[stock_type] = "File not found"
+
+        embed = Embed(
+            title="Token Stock Overview",
+            description="Here is the current stock of tokens:",
+            color=0x00FF00  # Green
+        )
+
+        for stock_type, count in stock_info.items():
+            embed.add_field(
+                name=f"{stock_type} Tokens",
+                value=f"`{count}` token(s) available" if isinstance(count, int) else f"`{count}`",
+                inline=False
+            )
+
+        await inter.edit_original_message(embed=embed)
+
+
 
 async def get_brandingdata() -> Tuple[str, str]:
     with open('config.json', 'r') as file:
