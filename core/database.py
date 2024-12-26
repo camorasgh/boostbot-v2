@@ -1,6 +1,58 @@
+import re
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import Tuple, List, Optional
+
+"""
+CREATION OF BOOST KEYS:
+
+abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+length = random.randint(15, 20)
+boost_key = ""
+for i in range(length):
+    boost_key += random.choice(abc)
+"""
+
+BOOST_KEY_REGEX = r"^[a-zA-Z0-9]{15,20}$"
+SQL_INJECTION_KEYWORDS = [
+    "SELECT", "INSERT", "UPDATE", "DELETE", "DROP", "TRUNCATE", 
+    "ALTER", "UNION", "AND", "OR", "EXEC", "CHAR", "CONCAT", 
+    "SLEEP", "--", ";", "/*", "*/", "@@", "DATABASE", "TABLE"
+]
+
+def validate_boost_key(func):
+    """
+    Decorator to validate the boost key argument of a function.
+
+    Assumes the function has a 'boost_key' parameter.
+
+    Raises:
+        ValueError: If boost_key is invalid.
+    """
+    async def wrapper(*args, **kwargs):
+        # Look for 'boost_key' in kwargs or positional args
+        boost_key = kwargs.get('boost_key')
+        if boost_key is None and len(args) > 0:
+            return # well then there's no way to check if boost_key is none, silently ignores 
+
+        # Validate boost_key
+        if not boost_key or not isinstance(boost_key, str):
+            raise ValueError("The 'boost_key' must be a non-empty string.")
+
+        if not re.fullmatch(BOOST_KEY_REGEX, boost_key):
+            raise ValueError(
+                "Invalid boost key. A valid key must be 15-20 characters long and contain only letters and digits."
+            )
+        boost_key_upper = boost_key.upper() # upper for uppercase cause case-sensitive comparison
+        for keyword in SQL_INJECTION_KEYWORDS:
+            if keyword in boost_key_upper:
+                raise ValueError(f"Boost key contains potentially dangerous SQL injection pattern: `{keyword}`")
+ 
+
+        # Proceed with the original function
+        return await func(*args, **kwargs)
+
+    return wrapper
 
 
 class DatabaseError(Exception):
@@ -96,6 +148,7 @@ async def add_user(user_id: int, database_name: str) -> bool:
         raise DatabaseError(f"Failed to add user: {e}")
 
 
+@validate_boost_key()
 async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name: str,
                         api_used: Optional[str] = None) -> bool:
     """
@@ -132,6 +185,7 @@ async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name: s
         raise DatabaseError(f"Failed to add boost key: {e}")
 
 
+@validate_boost_key()
 async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: str) -> bool:
     """
     Assigns a boost key to a user.
@@ -158,6 +212,8 @@ async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: 
     except sqlite3.Error as e:
         raise DatabaseError(f"Failed to assign boost key: {e}")
 
+
+@validate_boost_key()
 async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name : str):
     """
     Removes a boost key from a user. If no users are associated with the boost key, the key is deleted from the boost_keys table.
@@ -183,6 +239,8 @@ async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name
     connection.commit()
     connection.close()
 
+
+@validate_boost_key()
 async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str, user_id = None) -> bool:
     """
     Deducts boosts from a boost key with proper transaction handling.
@@ -236,7 +294,6 @@ async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str,
         if connection:
             cursor.execute("ROLLBACK")
         raise DatabaseError(f"Failed to remove boosts: {e}")
-
 
 
 async def get_boost_keys_for_user(user_id: int, database_name: str) -> List[Tuple[str, int]]:
@@ -294,9 +351,7 @@ async def check_user_has_valid_boost_key(user_id: int, database_name: str) -> Op
         raise DatabaseError(f"Failed to check boost key: {e}")
 
 
-
-
-
+@validate_boost_key()
 async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, database_name: str) -> bool:
     """
     Transfers a boost key between users with proper transaction handling.
@@ -342,6 +397,7 @@ async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, d
         raise DatabaseError(f"Failed to transfer boost key: {e}")
 
 
+@validate_boost_key()
 async def update_boosts_for_key(boost_key: str, boosts: int, database_name: str, operation: str) -> bool:
     """
     Updates the number of boosts for a key.
