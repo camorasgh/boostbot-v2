@@ -434,6 +434,9 @@ class TokenManager:
                     self.bot.logger.error(f"`ERR_UNHANDLED_RESPONSE` Failed to authorize token {token[:10]}...")
                     return None
             else:
+                if response.status_code == 403:
+                    self.bot.logger.error(f"`ERR_FORBIDDEN` Failed to authorize token {token[:10]}... Token Locked")
+                    return None
                 self.bot.logger.error(f"`ERR_NOT_SUCCESS` Failed to authorize token {token[:10]}... Status: {response.status_code}, Body: {response.text}")
                 return None
 
@@ -595,7 +598,7 @@ class BoostingModal(disnake.ui.Modal):
         try:
             guild_id = inter.text_values['boosting.guild_id']
             guild_ids = [gid.strip() for gid in guild_id.split(",")] if self.mass_boost else [guild_id]
-            amount = int(inter.text_values['boosting.amount'])
+            amount = int(inter.text_values['boosting.amount']) // 2
             token_type = inter.text_values['boosting.token_type']
 
             if amount % 2 != 0:
