@@ -7,7 +7,7 @@ import string
 import tls_client
 
 from datetime import datetime
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
+from disnake import ApplicationCommandInteraction, InteractionContextTypes, ApplicationInstallTypes
 from disnake import ModalInteraction, ui, TextInputStyle, Embed
 from disnake.ext import commands
 from typing import Dict
@@ -17,7 +17,8 @@ from core import database
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
-DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
+DEFAULT_INTEGRATION_TYPES = ApplicationInstallTypes.all()
+
 
 
 class Filemanager:
@@ -451,7 +452,7 @@ class Tokenmanager:
                 inline=False
             )
         success_boosts = sum(1 for success in self.boost_results.values() if success) * 2
-        failed_boosts = (len(self.boost_results) - success_boosts) * 2
+        failed_boosts = (len(self.boost_results.values()) - success_boosts) * 2
         embed.add_field(
             name="Boosting Results",
             value=f"**Successful Boosts:** {success_boosts}\n"
@@ -601,7 +602,7 @@ class JoinBoost(commands.Cog):
         name="join",
         description="Join group handler",
         contexts=DEFAULT_CONTEXTS,
-        integration_types=DEFAULT_INTEGRATION_TYPES
+        install_types=DEFAULT_INTEGRATION_TYPES
     )
     async def join_decorator(self, inter: ApplicationCommandInteraction):
         pass

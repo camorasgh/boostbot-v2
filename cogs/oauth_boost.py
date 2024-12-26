@@ -5,7 +5,7 @@ import tls_client
 from typing import List, Dict, Optional, Tuple
 
 import disnake
-from disnake import Embed, InteractionContextTypes, ApplicationIntegrationTypes
+from disnake import Embed, InteractionContextTypes, ApplicationInstallTypes
 from disnake.ext import commands
 
 from core.misc_boosting import TokenTypeError, load_config, Proxies
@@ -13,7 +13,7 @@ from core import database
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
-DEFAULT_INTEGRATION_TYPES = ApplicationIntegrationTypes.all()
+DEFAULT_INTEGRATION_TYPES = ApplicationInstallTypes.all()
 
 class JoinBoostCounter:
     """Handles the counting of successful and failed join and boost attempts."""
@@ -686,7 +686,7 @@ class OAuthBoost(commands.Cog):
         name="oauth",
         description="OAUTH group handler",
         contexts=DEFAULT_CONTEXTS,
-        integration_types=DEFAULT_INTEGRATION_TYPES
+        install_types=DEFAULT_INTEGRATION_TYPES
     )
     async def oauth_decorator(self, inter: disnake.ApplicationCommandInteraction) -> None:
         """Slash command decorator for grouping OAuth-related commands."""
