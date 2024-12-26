@@ -1,4 +1,4 @@
-disnake
+disnake==2.9.3
 colorama==0.4.6
 tls-client==1.0.1
 Flask==3.1.0

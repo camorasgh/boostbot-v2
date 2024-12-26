@@ -56,15 +56,11 @@ class Users(commands.Cog):
             return
         # noinspection PyUnusedLocal,PyBroadException
         try:
-            user_id = user
+            user_id = user.id
         except Exception as e:
-            embed = Embed(
-                title="Invalid User Format",
-                description=f"An error occurred while processing the user ID: {str(e)}.",
-                color=0xFF0000  # Red
-            )
-            await inter.response.send_message(embed=embed, ephemeral=True)
-            return
+            user_id = user
+            user_id = str(user_id)
+            user_id = user_id.replace('<', '').replace('>', '').replace('@', '')
 
         # Create random boost key
         abc = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
