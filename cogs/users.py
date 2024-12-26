@@ -103,7 +103,7 @@ class Users(commands.Cog):
         except Exception as e:
             try:
                 user_id = str(user).replace('<', '').replace('>', '').replace('@', '')
-            except Exception as e
+            except Exception as e:
                 embed = Embed(
                                 title="Invalid User Format",
                                 description=f"An error occurred while processing the user ID: {str(e)}.",
