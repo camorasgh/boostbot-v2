@@ -1,4 +1,4 @@
-git+https://github.com/DisnakeDev/disnake.git@ad2fb7c6602623fe0a67ec066dcc96d1e60491fa
+disnake
 colorama==0.4.6
 tls-client==1.0.1
 Flask==3.1.0
