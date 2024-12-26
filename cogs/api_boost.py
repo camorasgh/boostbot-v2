@@ -5,13 +5,15 @@ import random
 import re
 import string
 import tls_client
+
 from datetime import datetime
+from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
+from disnake import ModalInteraction, ui, TextInputStyle, Embed
+from disnake.ext import commands
 from typing import Dict
 
-from disnake import InteractionContextTypes, ApplicationIntegrationTypes, ApplicationCommandInteraction
-from disnake import ModalInteraction, ui, TextInputStyle, SelectOption, Embed
-from disnake.ext import commands
 from core.misc_boosting import TokenTypeError, load_config, get_headers, Proxies
+from core import database
 
 # Constants
 DEFAULT_CONTEXTS = InteractionContextTypes.all()
@@ -63,8 +65,46 @@ class Filemanager:
             raise ValueError(f"Not enough tokens found in ./input/tokens.txt. Required: {amount}, Found: {len(tokens)*2}")
         
         return tokens[:amount // 2]
+    @staticmethod
+    def token_amount(token_type: str):
+        """
+        Load a specified number of tokens from a file.
 
-    async def save_results(self, guild_invite: str, amount: int, join_results: dict, boost_results: dict) -> None:
+        Args:
+            token_type (str):   The token type to load (1m/3m)
+
+        Returns:
+            int: The number of tokens in the file.
+
+        """
+        tokens = []
+        if token_type == "1m":
+            file_name = "1m_tokens.txt"
+        elif token_type == "3m":
+            file_name = "3m_tokens.txt"
+        else:
+            raise TokenTypeError(f"Invalid token type: {token_type}. Choose '1m' or '3m'.")
+
+        with open(f"./input/{file_name}", "r") as file:
+            token_list = file.readlines()
+            for token in token_list:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+
+                if token:  # if token not empty string
+                    tokens.append(token)
+
+        available_tokens = len(tokens) * 2
+        return available_tokens
+    @staticmethod
+    async def save_results(guild_invite: str, amount: int, join_results: dict, boost_results: dict, boost_key = None, user_id = None) -> None:
         """
         Saves results of the join and boost processes to output files.
         Args:
@@ -72,30 +112,48 @@ class Filemanager:
             amount: The number of boosts processed.
             join_results: The results of the joining attempts (successful and failed).
             boost_results: The results of the boosting attempts (successful and failed).
+            boost_key: The boost key used for the operation.
+            user_id: The user ID of the person who used the boost key.
         """
-        timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        folder_name = f"./output/{timestamp}-{guild_invite}-({amount}x)"
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        safe_guild_invite = re.sub(r'[<>:"/\\|?*]', '_', guild_invite) # in order to avoid syntax for file names / folder names
+        folder_name = f"./output/{timestamp}-{safe_guild_invite}-({amount}x)"
         os.makedirs(folder_name, exist_ok=True)
 
+        successful_joins = [token for token, success in join_results.items() if success]
+        failed_joins = [token for token, success in join_results.items() if not success]
+
+        successful_boosts = [token for token, success in boost_results.items() if success]
+        failed_boosts = [token for token, success in boost_results.items() if not success]
+
         with open(os.path.join(folder_name, "successful_joins.txt"), "w") as file:
-            for token, success in join_results.items():
-                if success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(successful_joins))
 
         with open(os.path.join(folder_name, "failed_joins.txt"), "w") as file:
-            for token, success in join_results.items():
-                if not success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(failed_joins))
 
         with open(os.path.join(folder_name, "successful_boosts.txt"), "w") as file:
-            for token, success in boost_results.items():
-                if success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(successful_boosts))
 
         with open(os.path.join(folder_name, "failed_boosts.txt"), "w") as file:
-            for token, success in boost_results.items():
-                if not success:
-                    file.write(f"{token}\n")
+            file.write("\n".join(failed_boosts))
+
+        # boost key usage info
+        with open(os.path.join(folder_name, "boost_key_usage.txt"), "w") as file:
+            if boost_key and user_id:
+                file.write(f"Boost Key: {boost_key}\nUser ID: {user_id}\nTimestamp: {timestamp}")
+            else:
+                file.write("None used")
+
+        # summary
+        with open(os.path.join(folder_name, "summary.txt"), "w") as file:
+            file.write(f"Guild Invite: {guild_invite}\n")
+            file.write(f"Total Boosts Attempted: {amount}\n")
+            file.write(f"Successful Joins: {len(successful_joins)}\n")
+            file.write(f"Failed Joins: {len(failed_joins)}\n")
+            file.write(f"Successful Boosts: {len(successful_boosts)}\n")
+            file.write(f"Failed Boosts: {len(failed_boosts)}\n")
+
 
 class Tokenmanager:
     def __init__(self, bot):
@@ -273,30 +331,30 @@ class Tokenmanager:
                 
             r = self.client.get(url=url, headers=headers)
             if r.status_code  == 200:
-                data = await r.json()
+                data = r.json()
                 if len(data) > 0:
                     boost_ids = [boost['id'] for boost in data]
                     return boost_ids, self.client
-            elif r.status == 401:
+            elif r.status_code == 401:
                 self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
-            elif r.status == 403:
+            elif r.status_code == 403:
                 self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Flagged Token ({token[:10]}...)')
             else:
-                self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status} for token {token[:10]}...')
+                self.bot.logger.error(f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status_code} for token {token[:10]}...')
             return None, None
         
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
         except Exception as e:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error retrieving boost data: {str(e)}")
     
 
-    async def boost_server(self, token: str, guild_id: str, session, boost_ids) -> bool:
+    async def boost_server(self, token: str, guild_id: str, boost_ids) -> bool:
         """
         Boosts the server via guild id
         :param token: account token
         :param guild_id: id of the server to boost
-        :param session: session from get_boost_data
+
         :param boost_ids: boost ids as a list/tuple/etc.
         :return:
         """
@@ -310,17 +368,20 @@ class Tokenmanager:
             for boost_id in boost_ids:
                 payload = {"user_premium_guild_subscription_slot_ids": [int(boost_id)]}
                 headers = {"Authorization": token}
-                async with session.put(url=url, headers=headers, json=payload) as r:
-                    if r.status == 201:
-                        self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
-                        boosted = True
+                r = self.client.put(url=url, headers=headers, json=payload)
+                if r.status_code == 201:
+                    self.bot.logger.success(f"Boosted! {token[:10]} ({guild_id})")
+                    boosted = True
+                    break
+                else:
+                    response_json = r.json()
+                    if "Must wait for premium server subscription cooldown to expire" in response_json.get("message", ""):
+                        self.bot.logger.error(f"`ERR_COOLDOWN` Boosts Cooldown for Token {token[:10]}")
                         break
-                    else:
-                        response_json = await r.json()
-                        self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
+                    self.bot.logger.error(f"`ERR_NOT_SUCCESS` Boost failed: {token[:10]} ({guild_id}). Response: {response_json}")
             return boosted
 
-        except tls_client.exceptions.TlsClientException as e:
+        except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error during boosting with token {token[:10]}: {str(e)}")
             return False
 
@@ -341,8 +402,12 @@ class Tokenmanager:
             user_id = str(await self.get_userid(token=token))
             joined, guild_id = await self.join_guild(token=token, inv=guild_invite, proxy_=selected_proxy) # still needs to be made | possibly done
             if joined:
-                boost_ids, session = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
-                boosted = await self.boost_server(token=token, guild_id=guild_id, session=session, boost_ids=boost_ids)
+                boost_data = await self.get_boost_data(token=token, selected_proxy=selected_proxy)
+                if boost_data is None:
+                    self.bot.logger.error("Failed to retrieve boost data.")
+                    return
+                boost_ids, session = boost_data
+                boosted = await self.boost_server(token=token, guild_id=guild_id, boost_ids=boost_ids)
                 self.boost_results[user_id] = False if boosted == False else True
                 pass
             else:
@@ -350,12 +415,15 @@ class Tokenmanager:
         except Exception as e:
             self.bot.logger.error(f"Error processing token {token[:10]}...: {str(e)}")
 
-    async def send_summary_embed(self, inter: ApplicationCommandInteraction, guild_invite, amount):
+    async def send_summary_embed(self, inter: ApplicationCommandInteraction, guild_invite, amount, boost_data=None):
         """
         Sends an embed summarizing the join and boost results.
         Resets the stats afterward to avoid stale data.
         Params:
         :param inter: Interaction, Provided by Discord
+        :param guild_invite: The guild invite
+        :param amount: The amount of boosts
+        :param boost_data: The boost data (boost key, remaining boosts) if available
         """
 
         async def censor_token(token: str) -> str:
@@ -382,16 +450,44 @@ class Tokenmanager:
                 value=join_results_str[:1024],  # Discord field size limit
                 inline=False
             )
-        success_boosts = sum(1 for success in self.boost_results.values() if success)
-        failed_boosts = len(self.boost_results) - success_boosts
+        success_boosts = sum(1 for success in self.boost_results.values() if success) * 2
+        failed_boosts = (len(self.boost_results) - success_boosts) * 2
         embed.add_field(
             name="Boosting Results",
             value=f"**Successful Boosts:** {success_boosts}\n"
-                  f"**Failed Boosts:** {failed_boosts}",
+                  f"**Failed Boosts:** {failed_boosts} (Tokens: {failed_boosts // 2})",
             inline=False
         )
-        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results)
         config = await load_config()
+        boost_key = None
+        if boost_data:
+            boost_key, remaining_boosts = boost_data
+            boosts_needed_to_remove = remaining_boosts - success_boosts
+            success = await database.remove_boost_from_key(boost_key=boost_key,
+                                                     boosts=boosts_needed_to_remove,
+                                                     database_name=config["boost_keys_database"]["name"],
+                                                     user_id=inter.author.id
+                                                     ) # unused now what
+            if success:
+                embed.add_field(
+                    name="Boosts Removal",
+                    value=f"Successfully removed boosts from Boost Key.",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Boost Key Removal",
+                    value=f"Failed to remove boosts from Boost Key.",
+                    inline=False
+                )
+
+        try:
+            # Clean guild invite from either discord.gg, https etc, so get only the code
+            guild_invite = re.search(r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$", guild_invite).group(2)
+        except AttributeError:
+            pass
+
+        await Filemanager.save_results(guild_invite, amount, self.join_results, self.boost_results, boost_key if boost_data else None, inter.author.id if boost_data else None) # Possible error here
         if config["logging"]["boost_dm_notifications"]:
             await inter.author.send(embed=embed)
         if config["logging"]["enabled"]:
@@ -402,13 +498,14 @@ class Tokenmanager:
             await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
 
-    async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str):
+    async def process_tokens(self, inter, guild_invite: str, amount: int, token_type: str, boost_data=None):
         """
         Processes the all the tokens aka gathers all tasks for asyncio to process each one afterwards
         :param inter: Interaction in case of not enough tokens
         :param guild_invite: guild invite from modal
         :param amount: amount to boost
         :param token_type: type of token (1m/3m)
+        :param boost_data: boost data if available
         """
         tokens_to_process = []
         try:
@@ -423,7 +520,7 @@ class Tokenmanager:
 
         tasks = [self.process_single_token(token, guild_invite) for token in tokens_to_process]
         await asyncio.gather(*tasks)
-        await self.send_summary_embed(inter, guild_invite, amount)
+        await self.send_summary_embed(inter, guild_invite, amount, boost_data if boost_data else None)
 
 
 class BoostingModal(ui.Modal):
@@ -432,8 +529,11 @@ class BoostingModal(ui.Modal):
 
     Bot: The bot instance.
     """
-    def __init__(self, bot: commands.InteractionBot) -> None:
+    def __init__(self, bot: commands.InteractionBot, boost_data = None) -> None:
         self.bot = bot
+        self.boost_data = boost_data
+        available_1m_tokens = Filemanager.token_amount("1m")
+        available_3m_tokens = Filemanager.token_amount("3m")
         components = [
             ui.TextInput(
                 label="Guild Invite",
@@ -445,7 +545,7 @@ class BoostingModal(ui.Modal):
             ),
             ui.TextInput(
                 label="Amount",
-                placeholder="The amount of boosts",
+                placeholder=f"The amount of boosts (Available: 1m: {available_1m_tokens}, 3m: {available_3m_tokens}",
                 custom_id="boosting.amount",
                 style=TextInputStyle.short,
                 min_length=1,
@@ -473,9 +573,20 @@ class BoostingModal(ui.Modal):
                 await interaction.followup.send("`ERR_ODD_AMOUNT` Amount must be an even number.", ephemeral=True)
                 return
             
+            if self.boost_data:
+                boost_key, remaining_boosts = self.boost_data
+                if amount > remaining_boosts:
+                    await interaction.followup.send(
+                        f"`ERR_INSUFFICIENT_BOOSTS` Your boost key `{boost_key:4}` only allows "
+                        f"{remaining_boosts} boosts, but you requested {amount}.",
+                        ephemeral=True,
+                    )
+                    return
+
+            
             tkn = Tokenmanager(self.bot)
             self.bot.logger.info(f"Boosting {int(amount / 2)} users to guild {guild_invite}") # type: ignore
-            await tkn.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount, token_type=token_type)
+            await tkn.process_tokens(inter=interaction, guild_invite=guild_invite, amount=amount, token_type=token_type, boost_data=self.boost_data)
 
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore
@@ -499,11 +610,20 @@ class JoinBoost(commands.Cog):
     async def join_boost_guild(self, inter: ApplicationCommandInteraction):
         config = await load_config()
         owner_ids = config["owner_ids"]
-        if inter.author.id not in owner_ids:
-            return await inter.response.send_message("You do not have permission to use this command", ephemeral=True)
+        boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id, 
+                                                                   database_name=config["boost_keys_database"]["name"]
+                                                                   ) if config["boost_keys_database"]["enabled"] else None
+        if inter.author.id not in owner_ids and boost_data is None:
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
         
         try:
-            modal = BoostingModal(self.bot)
+            modal = BoostingModal(self.bot,boost_data if boost_data else None)
             await inter.response.send_modal(modal)
         except Exception as e:
             self.bot.logger.error(str(e)) # type: ignore

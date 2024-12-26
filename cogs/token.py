@@ -1,11 +1,9 @@
-import asyncio
 import datetime
 import disnake
 import json
 import os
-import random
 import tls_client
-from typing import Tuple, Any
+from typing import Tuple
 
 from disnake import ApplicationCommandInteraction, Embed
 from disnake.ext import commands
@@ -36,28 +34,51 @@ class Token(commands.Cog):
 
     @commands.slash_command(name="tokens", description="Token management commands")
     async def tokens(self, inter):
-        pass  # correct placeholder?
+        pass
 
     @tokens.sub_command(name="check", description="Checks all tokens available")
     async def check(self, inter: ApplicationCommandInteraction, token_type: str = commands.Param(choices=["1M", "3M"])):
+        await inter.response.defer()
         if inter.author.id not in self.owner_ids:
             embed = Embed(
                 title="Unauthorized Access",
                 description="You are not authorized to use this command.",
                 color=0xFF0000  # Red
             )
-            await inter.response.send_message(embed=embed, ephemeral=True)
+            await inter.edit_original_message(embed=embed)
             return
-        await inter.response.defer(with_message=True)
-        file_path = f'./input/{token_type.lower()}_tokens.txt'
 
+        file_path = f'./input/{token_type.lower()}_tokens.txt'
+        if not os.path.exists(file_path):
+            embed = Embed(
+                title="File Not Found",
+                description=f"The file `{token_type.lower()}_tokens.txt` does not exist.",
+                color=0xFFA500  # Orange
+            )
+            await inter.edit_original_message(embed=embed)
+            return
         try:
             with open(file_path, 'r') as file:
-                tokens = [token.strip() for token in file.readlines()]
+                raw_tokens = [token.strip() for token in file.readlines()]
             invalid_count, no_nitro_count, results = 0, 0, []
             valid_tokens, nitroless_tokens = [], []
+            tokens = []
+            for token in raw_tokens:
+                token = token.strip()
+                parts = token.split(":")
+                if len(parts) >= 3:  # mail:pass:token format
+                    token = parts[-1]
+                elif len(parts) == 1:  # token only
+                    token = parts[0]
+                else:
+                    # Invalid token format, skipping
+                    continue
+
+                if token:  # Only add non-empty tokens
+                    tokens.append(token)
+
             for token in tokens:
-                result = self.check_token(self.client, token)
+                result = await self.check_token(self.client, token)
                 if result['status'] == "valid":
                     valid_tokens.append(token)
                     results.append(result)
@@ -73,9 +94,17 @@ class Token(commands.Cog):
                 title=f"Token Check Results - {token_type}",
                 color=0x800080  # Purple
             )
+            embed.add_field(name="Total Tokens", value=f"{len(tokens)} token(s) found.", inline=False)
+            valid_descriptions = "\n".join([result['description'] for result in results if result['status'] == 'valid'])
+            embed.add_field(name="Valid Tokens", value=f"`{valid_descriptions[:1024]}`", inline=False)
+            invalid_descriptions = "\n".join([result['description'] for result in results if result['status'] == 'invalid'])
+            embed.add_field(name="Invalid Tokens", value=f"`{invalid_descriptions[:1024]}`", inline=False)
+
             if invalid_count:
                 embed.add_field(name="Invalid Tokens Removed", value=f"{invalid_count} invalid tokens removed.", inline=False)
-            await inter.followup.send(embed=embed)
+
+
+            await inter.edit_original_message(embed=embed)
             if no_nitro_count > 0:
                 removal_embed = Embed(
                     title="Remove Tokens Without Nitro?",
@@ -83,7 +112,7 @@ class Token(commands.Cog):
                     color=0x800080  # Purple
                 )
                 view = NitrolessRemovalButton(self, file_path, nitroless_tokens)
-                await inter.followup.send(embed=removal_embed, view=view)
+                await inter.edit_original_message(embed=removal_embed, view=view)
 
         except Exception as e:
             self.bot.logger.error(f"An error occurred: {str(e)}")
@@ -92,7 +121,7 @@ class Token(commands.Cog):
                 description="An error occurred while checking tokens. Please check the logs.",
                 color=0xFF0000  # Red
             )
-            await inter.followup.send(embed=error_embed)
+            await inter.edit_original_message(embed=error_embed)
 
 
     async def check_token(self, session, token):
@@ -261,14 +290,19 @@ class Token(commands.Cog):
 
             try:
                 # Get a random proxy
-                proxy = prx.get_random_proxy(self.bot)
+                proxy = await prx.get_random_proxy(self.bot)
+                # noinspection HttpUrlsUsage
+                proxy = {
+                    "http": "http://{}".format(proxy),
+                    "https": "https://{}".format(proxy)
+                } if proxy else None
 
                 # Update the guild display name
                 display_name_response = self.client.patch(
                     f"https://discord.com/api/v9/guilds/{guild_id}/members/@me",
                     headers=headers,
                     json=json_data2,
-                    proxies={"http": proxy, "https": proxy},
+                    proxy=proxy
                 )
                 response_text2 = display_name_response.text
 
@@ -283,8 +317,6 @@ class Token(commands.Cog):
                 failed_tokens.append((token, f"Connection Error: {str(e)}"))
             except Exception as e:
                 failed_tokens.append((token, f"Unexpected Exception: {str(e)}"))
-
-            return success_count
 
         # Summary of operation | ephemeral
         embed = Embed(
@@ -345,6 +377,43 @@ class Token(commands.Cog):
                     color=0xFF0000  # Red
                 )
                 await inter.response.send_message(embed=embed_dm_fail, ephemeral=True)
+
+    @tokens.sub_command(name="stock", description="Displays the current token stock for 1M and 3M tokens")
+    async def stock(self, inter: ApplicationCommandInteraction):
+        await inter.response.defer()
+
+        stock_info = {}
+        stock_type = None
+        for file_path in self.file_paths:
+            if file_path == "./input/1m_tokens.txt":
+                stock_type = "1m"
+            elif file_path == "./input/3m_tokens.txt":
+                stock_type = "3m"
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, "r") as file:
+                        tokens = [line.strip() for line in file.readlines() if line.strip()]
+                        stock_info[stock_type] = len(tokens)
+                except Exception as e:
+                    stock_info[stock_type] = f"Error: {str(e)}"
+            else:
+                stock_info[stock_type] = "File not found"
+
+        embed = Embed(
+            title="Token Stock Overview",
+            description="Here is the current stock of tokens:",
+            color=0x00FF00  # Green
+        )
+
+        for stock_type, count in stock_info.items():
+            embed.add_field(
+                name=f"{stock_type} Tokens",
+                value=f"`{count}` token(s) available" if isinstance(count, int) else f"`{count}`",
+                inline=False
+            )
+
+        await inter.edit_original_message(embed=embed)
+
 
 
 async def get_brandingdata() -> Tuple[str, str]:

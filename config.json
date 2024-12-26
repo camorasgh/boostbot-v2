@@ -7,9 +7,13 @@
   "brand_bio": "burger",
   "brand_displayname": "spaghetti",
   "logging": {
-    "enabled": true,
+    "enabled": false,
     "server_id": 123,
     "channel_id": 123,
     "boost_dm_notifications": false
+  },
+  "boost_keys_database": {
+    "enabled": true,
+    "name": "boost_keys.db"
   }
 }

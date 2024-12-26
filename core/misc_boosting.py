@@ -14,6 +14,8 @@ class TokenTypeError(Exception):
 async def load_config() -> Dict:
     """
     Loads the config.json as a dict
+    Returns:
+        - config: The config as dictionary
     """
     with open('config.json', 'r') as file:
         config = json.load(file)
@@ -51,11 +53,29 @@ def get_headers(token: str) -> Dict:
     }
     return headers # "hardcoded things cuz IDK but it works godly" ~ borgo 2k24
 
+
 class Proxies:
     def __init__(self):
         self.proxies = []
 
     async def load_proxies(self, bot) -> None:
+        """
+        Asynchronously loads proxies from a file and formats them.
+
+        This method reads proxies from './input/proxies.txt', formats each proxy,
+        and stores them in the instance's proxies list. It logs the number of
+        loaded proxies or any errors encountered during the process.
+
+        Args:
+            bot: An object with a logger attribute for logging information and errors.
+
+        Returns:
+            None
+
+        Raises:
+            FileNotFoundError: If the proxies.txt file is not found.
+            Exception: For any other errors that occur during proxy loading.
+        """
         try:
             with open("./input/proxies.txt", "r") as file:
                 self.proxies = [await self.format_proxy(line.strip()) for line in file if line.strip()]
@@ -65,17 +85,35 @@ class Proxies:
         except Exception as e:
             bot.logger.error(f"Error loading proxies: {str(e)}")
 
+
     @staticmethod
     async def format_proxy(proxy: str) -> str:
         """
-        Formats provided proxy
-        :param proxy:
-        :return: formatted proxy
+        Formats the provided proxy string.
+
+        This method ensures that the proxy is in the correct format,
+        handling cases where authentication information is included.
+
+        Args:
+            proxy (str): The proxy string to format. It can be in the format
+                         'ip:port' or 'username:password@ip:port'.
+
+        Returns:
+            str: The formatted proxy string. If the input contains authentication
+                 information, it is preserved in the output. Otherwise, the input
+                 is returned as is.
+
+        Example:
+        #  >>> await Proxies.format_proxy('127.0.0.1:8080')
+            return '127.0.0.1:8080'
+           # >>> await Proxies.format_proxy('user:pass@127.0.0.1:8080')
+            return 'user:pass@127.0.0.1:8080' | aka 'auth@ip_port'
         """
         if '@' in proxy:
             auth, ip_port = proxy.split('@')
             return f"{auth}@{ip_port}"
         return f"{proxy}"
+
 
     async def get_random_proxy(self, bot) -> Any | None:
         """Return a random proxy from the loaded list, or None if no proxies are available."""

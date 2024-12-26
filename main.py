@@ -1,3 +1,5 @@
+import asyncio
+
 import colorama
 import ctypes
 import datetime
@@ -12,6 +14,8 @@ from colorama import Fore, Style
 from disnake.ext import commands
 from typing import Dict, Any
 
+from core.database import setup_database
+from core.misc_boosting import load_config
 
 class Logger:
     @staticmethod
@@ -37,6 +41,7 @@ class Logger:
     def log(message: str, status: str, status_color: Any) -> None:
         """
         Format and print log messages with proper gradients and centering.
+        Returns: None
         """
         current_time = datetime.datetime.now().strftime("%m/%d - %H:%M:%S")
         terminal_width = shutil.get_terminal_size().columns
@@ -97,12 +102,18 @@ class Logger:
 class Utils:
     @staticmethod
     def format_time() -> str:
+        """
+        Formats the current time in the format dd/mm - HH:MM.
+        """
         current_time = datetime.datetime.now(datetime.timezone.utc)
         formatted = current_time.strftime("%d/%m - %H:%M")
         return formatted
 
     @staticmethod
     def load_config(fp: str ="./config.json")-> Dict[Any, Any] | bool:
+        """
+        Loads the config.json as a dict
+        """
         try:
             with open(fp, "r") as config_file:
                 config = json.load(config_file)
@@ -123,6 +134,9 @@ class Cog_Loader:
         self.errors = []
 
     def get_results(self) -> Dict:
+        """
+        Returns a dictionary containing the results of the cog loading process.
+        """
         results = {
             "loaded": self.loaded,
             "not_loaded": self.not_loaded,
@@ -134,7 +148,10 @@ class Cog_Loader:
 
         return results
 
-    def load(self):
+    def load(self) -> None:
+        """
+        Function to load all cogs in the./cogs directory.
+        """
         if not os.path.exists("./cogs"):
             self.errors.append("./cogs folder does not exist.")
             return
@@ -175,7 +192,10 @@ class Banner:
  """
         self.links = "[https://discord.gg/camora]    [https://discord.gg/borgo]"
 
-    def enable_virtual_terminal(self):
+    def enable_virtual_terminal(self) -> None:
+        """
+        Enables virtual terminal mode for better console color support.
+        """
         self.banner.islower()
         if os.name == 'nt':
             kernel32 = ctypes.windll.kernel32
@@ -184,7 +204,10 @@ class Banner:
             kernel32.GetConsoleMode(handle, ctypes.byref(mode))
             kernel32.SetConsoleMode(handle, mode.value | 0x4)
 
-    def print_banner(self):
+    def print_banner(self) -> None:
+        """
+        Prints the banner into the console with gradient and centered text.
+        """
         self.enable_virtual_terminal()
         terminal_size = shutil.get_terminal_size()
         self.terminal_size = terminal_size
@@ -198,7 +221,10 @@ class Banner:
         self.print_alternating_color_text(self.links)
         print("\033[0m")
 
-    def print_alternating_color_text(self, text):
+    def print_alternating_color_text(self, text) -> None:
+        """
+        Prints the given text alternating between two colors.
+        """
         color1, color2 = 93, 93 #, 57
         for i, char in enumerate(text.center(self.terminal_size.columns)):
             color_code = color1 if i % 2 == 0 else color2
@@ -216,6 +242,12 @@ class Bot(commands.InteractionBot): # no message commands
         self.global_cooldown = commands.CooldownMapping.from_cooldown(5, 60, commands.BucketType.user)
 
     def load_and_validate_config(self) -> Dict[str, Any]:
+        """
+        Attempts to load and validate the bot's configuration from a JSON file.
+        If the configuration file is invalid or could not be found, it raises a ValueError.
+        If required configuration parameters are missing, it raises a ValueError.
+        :return: The validated and loaded configuration dictionary.
+        """
 
         config = Utils.load_config()
         if not config:
@@ -231,7 +263,14 @@ class Bot(commands.InteractionBot): # no message commands
         return config
 
     #cooldown
-    async def process_commands(self, message: disnake.Message):
+    async def process_commands(self, message: disnake.Message) -> None:
+        """
+        This function is called whenever a message is received.
+        It checks if the author of the message is a bot and ignores them.
+        It also checks the rate limit for the user using the global cooldown.
+        If the user is being rate limited, it sends a message and stops further processing.
+        Otherwise, it processes the command.
+        """
         if message.author.bot:
             return
 
@@ -244,11 +283,22 @@ class Bot(commands.InteractionBot): # no message commands
         await super().process_commands(message) # type: ignore
 
 
-vortex = Bot()
+vortex = Bot(test_guilds=[1297982536294731897]) # Remove test_guilds parameter or add it to config.json
 
 
 @vortex.listen("on_ready")
-async def on_ready_listener():
+async def on_ready_listener() -> None:
+    """
+    After connecting to Discord and the bot is ready, this function is called.
+    Sets up the database and loads the cogs.
+    If any errors occur during setup, they are logged.
+    """
+    config = await load_config()
+    success = await setup_database(database_name=config["boost_keys_database"]["name"])
+    if success:
+        Logger.success("Database setup successful")
+    else:
+        Logger.error("Database setup failed")
     cogs = Cog_Loader(vortex)
     cogs.load()
     print()
@@ -258,23 +308,31 @@ async def on_ready_listener():
     Logger.info(f"Loaded {cogs_results['loaded']} cogs")
     if cogs_results.get('not_loaded'):
         Logger.error(f"Failed to load {cogs_results['not_loaded']} cogs")
-        for error in cogs_results['errors']:
-            Logger.error(error)
+        Logger.error(cogs_results['errors'])
     Logger.info(f"Registered Commands: {len(vortex.all_slash_commands)}")
 
 
 @vortex.listen("on_connect")
-async def on_connect_listener():
+async def on_connect_listener() -> None:
+    """
+    After connecting to Discord, this function is called.
+    """
     Logger.success("Bot has successfully been connected to Discord")
 
 
 @vortex.listen("on_disconnect")
-async def on_disconnect_listener():
+async def on_disconnect_listener() -> None:
+    """
+    After disconnecting from Discord, this function is called.
+    """
     Logger.error("Bot has been disconnected from Discord")
 
 
 @vortex.event
-async def on_application_command(inter: disnake.ApplicationCommandInteraction):
+async def on_application_command(inter: disnake.ApplicationCommandInteraction) -> None:
+    """
+    Once a user uses a slash command, this function is called.
+    """
     bucket = vortex.global_cooldown.get_bucket(inter) # type: ignore
     retry_after = bucket.update_rate_limit()
     if retry_after:
@@ -296,3 +354,20 @@ if __name__ == "__main__":
         raise Exception("Improper token has been passed")
     except KeyboardInterrupt:
         sys.exit()
+
+import atexit
+def on_close():
+    try:
+        vortex.close()
+    except Exception as e:
+        print(f"Error on close: {e}")
+    try:
+        for task in asyncio.all_tasks():
+            task.cancel()
+
+    except Exception as e:
+        print(f"Error on close: {e}")
+
+
+atexit.register(on_close)
+
