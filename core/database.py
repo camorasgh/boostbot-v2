@@ -148,7 +148,7 @@ async def add_user(user_id: int, database_name: str) -> bool:
         raise DatabaseError(f"Failed to add user: {e}")
 
 
-@validate_boost_key()
+@validate_boost_key
 async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name: str,
                         api_used: Optional[str] = None) -> bool:
     """
@@ -185,7 +185,7 @@ async def add_boost_key(boost_key: str, redeemable_boosts: int, database_name: s
         raise DatabaseError(f"Failed to add boost key: {e}")
 
 
-@validate_boost_key()
+@validate_boost_key
 async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: str) -> bool:
     """
     Assigns a boost key to a user.
@@ -213,7 +213,7 @@ async def assign_boost_key_to_user(user_id: int, boost_key: str, database_name: 
         raise DatabaseError(f"Failed to assign boost key: {e}")
 
 
-@validate_boost_key()
+@validate_boost_key
 async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name : str):
     """
     Removes a boost key from a user. If no users are associated with the boost key, the key is deleted from the boost_keys table.
@@ -240,7 +240,7 @@ async def remove_boost_key_from_user(user_id: int, boost_key: str, database_name
     connection.close()
 
 
-@validate_boost_key()
+@validate_boost_key
 async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str, user_id = None) -> bool:
     """
     Deducts boosts from a boost key with proper transaction handling.
@@ -285,7 +285,7 @@ async def remove_boost_from_key(boost_key: str, boosts: int, database_name: str,
             
             # If no users are associated with the boost key, delete the key from the boost_keys table
             if count == 0 and user_id is not None:
-                remove_boost_key_from_user(user_id, boost_key, database_name)
+                await remove_boost_key_from_user(user_id, boost_key, database_name)
 
             connection.commit()
             return True
@@ -351,7 +351,7 @@ async def check_user_has_valid_boost_key(user_id: int, database_name: str) -> Op
         raise DatabaseError(f"Failed to check boost key: {e}")
 
 
-@validate_boost_key()
+@validate_boost_key
 async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, database_name: str) -> bool:
     """
     Transfers a boost key between users with proper transaction handling.
@@ -397,7 +397,7 @@ async def transfer_boost_key(sender_id: int, receiver_id: int, boost_key: str, d
         raise DatabaseError(f"Failed to transfer boost key: {e}")
 
 
-@validate_boost_key()
+@validate_boost_key
 async def update_boosts_for_key(boost_key: str, boosts: int, database_name: str, operation: str) -> bool:
     """
     Updates the number of boosts for a key.

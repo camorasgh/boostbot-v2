@@ -46,7 +46,14 @@ class Users(commands.Cog):
             )
             await inter.response.send_message(embed=embed, ephemeral=True)
             return
-        
+        if redeemable_boosts % 2 != 0:
+            embed = Embed(
+                title="Invalid Amount",
+                description="The amount of redeemable boosts must be an even number.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
         # noinspection PyUnusedLocal,PyBroadException
         try:
             user_id = user
@@ -69,7 +76,12 @@ class Users(commands.Cog):
             await add_boost_key(boost_key=boost_key, redeemable_boosts=redeemable_boosts, database_name=database_name)
             await add_user(user_id=user_id, database_name=database_name)
             await assign_boost_key_to_user(user_id=user_id, boost_key=boost_key, database_name=database_name)
-            await inter.response.send_message(f"Assigned Boost Key `{boost_key}` with {redeemable_boosts} redeemable boosts to <@{user_id}>", ephemeral=True)
+            embed = Embed(
+                title="Boost Key Assigned",
+                description=f"Assigned Boost Key `{boost_key}` with {redeemable_boosts} redeemable boosts to <@{user_id}>",
+                color=0x00FF00  # Green
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             embed = Embed(
                 title="Database Error",
