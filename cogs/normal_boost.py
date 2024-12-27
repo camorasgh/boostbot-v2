@@ -620,7 +620,7 @@ async def send_summary_embed(inter: ModalInteraction, invite: str, amount: int, 
             logchannel = logserver.get_channel(log_channel_id)
             await logchannel.send(embed=embed)
         await inter.followup.send(embed=embed, ephemeral=True)
-        
+
 async def process_tokens(inter: ModalInteraction, invite: str, amount: int, tokens: List[str], boost_data = None) -> None:
     """
     Process the tokens to join the guild and boost it
