@@ -1,25 +1,23 @@
+import asyncio
 import base64
 import os
 import random
 import re
 import string
-from pathlib import Path
-from zoneinfo import available_timezones
-
 import tls_client
 import sys
 import aiofiles
-from aiofiles import base as aiofiles_base
 
+from aiofiles import base as aiofiles_base
+from pathlib import Path
 from datetime import datetime
-from disnake import ApplicationInstallTypes, InteractionContextTypes, ApplicationCommandInteraction, Embed, \
-    ModalInteraction, ui, TextInputStyle
+from disnake import ApplicationInstallTypes, InteractionContextTypes, ApplicationCommandInteraction, Embed, ModalInteraction, ui, TextInputStyle
 from disnake.ext import commands
 from typing import Dict, List, Union, TextIO, BinaryIO, TypeVar, overload, Tuple, Optional
 from typing_extensions import Literal, TypeAlias
 
 from core import database
-from core.misc_boosting import Proxies, get_headers, load_config
+from core.misc_boosting import Proxies, get_headers, load_config, TokenTypeError
 
 # App command types
 BASE_INSTALL_TYPES = ApplicationInstallTypes.all()
@@ -50,11 +48,14 @@ class FileIOError(Exception):
 def is_valid_token_type(func: callable) -> callable:
     """Decorator to check if token type is valid"""
 
-    def wrapper(*args, **kwargs):
+    def wrapper(*args, **kwargs) -> callable:
+        """
+        Check if the token type is valid
+        """
         token_type = kwargs.get('token_type')
         if token_type not in ['1m', '3m']:
             raise TokenTypeError(f"Invalid token type: {token_type}")
-        return func(*args, **kwargs)
+        return func(*args, **kwargs) # type: ignore
 
     return wrapper
 
@@ -66,7 +67,7 @@ class FileManager:
     def _get_base_path() -> Path:
         """Get the base path depending on whether running as executable or script"""
         if getattr(sys, 'frozen', False):
-            return Path(sys._MEIPASS)
+            return Path(sys._MEIPASS) # type: ignore
         return Path(os.path.dirname(os.path.abspath(__file__)))
 
     @staticmethod
@@ -236,11 +237,11 @@ class FileManager:
         folder_path = FileManager._get_base_path() / folder_name
         os.makedirs(os.path.dirname(folder_path), exist_ok=True)
 
-        successful_joins = [token for token, success in join_results.items() if success]
-        failed_joins = [token for token, success in join_results.items() if not success]
+        successful_joins = [token for token, success in join_results.items() if success] # type: ignore
+        failed_joins = [token for token, success in join_results.items() if not success] # type: ignore
 
-        successful_boosts = [token for token, success in boosts_results.items() if success]
-        failed_boosts = [token for token, success in boosts_results.items() if not success]
+        successful_boosts = [token for token, success in boosts_results.items() if success] # type: ignore
+        failed_boosts = [token for token, success in boosts_results.items() if not success] # type: ignore
 
         async with await FileManager.async_open(folder_path / "successful_joins.txt", 'w') as file:
             await file.write('\n'.join(successful_joins))
@@ -286,14 +287,14 @@ class Discord:
         self.token = token
         self.bot = bot
         self.client = tls_client.Session(
-            client_identifier="chrome112", # Dont change this
+            client_identifier="chrome112", # type: ignore # Dont change this
             random_tls_extension_order=True,
         )
         self.join_results = {}
         self.boosts_results = {}
         self.proxies = Proxies()
 
-    def get_cookies(self):
+    def get_cookies(self) -> Dict[str, str]:
         """
         Retrieve cookies dict
         """
@@ -309,7 +310,7 @@ class Discord:
             self.bot.logger.error(f"Error getting cookies: {str(e)}")
             return cookies
 
-    async def get_boost_ids(self, token: str, proxy_: str):
+    async def get_boost_ids(self, token: str, proxy_: str) -> Optional[List[str]]:
         """
         Get the boost slots
         Args:
@@ -359,7 +360,7 @@ class Discord:
             self.bot.logger.error('Unknown error occurred in boosting guild: {}'.format(e))
             return None
 
-    async def get_userid(self, token):
+    async def get_userid(self, token) -> str:
         """
         Uses base64 to decode the first part of the token into the discord ID
         Args:
@@ -378,7 +379,7 @@ class Discord:
 
         return decoded_str
 
-    async def join_guild(self, token, inv, proxy_):
+    async def join_guild(self, token, inv, proxy_) -> Tuple[bool, Optional[str]]:
         """
         Joins guild via token
 
@@ -389,7 +390,7 @@ class Discord:
         """
         payload = {
             'session_id': ''.join(
-                random.choice(string.ascii_lowercase) + random.choice(string.digits) for _ in range(16))
+                random.choice(string.ascii_lowercase) + random.choice(string.digits) for _ in range(16)) # type: ignore
         }
 
         # noinspection HttpUrlsUsage
@@ -444,7 +445,7 @@ class Discord:
             self.not_joined_count += 1
             return False, None
 
-    async def get_boost_data(self, token: str, selected_proxy):
+    async def get_boost_data(self, token: str, selected_proxy) -> Optional[List[str]]:
         """
         Retrieves the boost ids and session
         :param token:
@@ -518,7 +519,7 @@ class Discord:
             self.bot.logger.error(f"`ERR_UNKNOWN_EXCEPTION` Error boosting with token {token[:10]}: {str(e)}")
             return False
 
-    async def process(self, invite: str) -> None:
+    async def process(self, invite: str) -> Tuple[Dict[str, bool], Dict[str, bool]] | None:
         try:
             proxy = await self.proxies.get_random_proxy(self.bot)
             user_id = str(await self.get_userid(token=self.token))
@@ -536,11 +537,110 @@ class Discord:
         except Exception as e:
             self.bot.logger.error(f"Error processing token {self.token}: {str(e)}")
 
+        return self.join_results, self.boosts_results
 
+async def send_summary_embed(inter: ModalInteraction, invite: str, amount: int, join_results: dict, boosts_results: dict, boost_data: Optional[str] = None) -> None:
+    """
+    Send a summary embed after processing the tokens
+    Params:
+    :param inter: The interaction object
+    :param invite: The invite link used for boosting
+    :param amount: The amount of boosts processed
+    :param join_results: The results of the join process
+    :param boosts_results: The results of the boosting process
+    :param boost_data: The key used for boosting
+    """
+    async def mask_token(token: str) -> str:
+        parts = token.split('.')
+        return f"{parts[0]}.***" if len(parts) > 1 else "***" # type: ignore
 
+    successful_joins = [token for token, success in join_results.items() if success] # type: ignore
+    failed_joins = [token for token, success in join_results.items() if not success] # type: ignore
+    successful_boosts = [token for token, success in boosts_results.items() if success] # type: ignore
+    failed_boosts = [token for token, success in boosts_results.items() if not success] # type: ignore
+    embed = Embed(
+        title="Boosting Operation Summary",
+        color=0x00FF00 if len(successful_joins) > 0 else 0xFF0000
+    )
+    embed.add_field(
+        name="Results",
+        value=f"Successful Joins: {len(successful_joins)}\n"
+              f"Failed Joins: {len(failed_joins)}\n\n"
+              f"Successful Boosts: {len(successful_boosts)}\n"
+              f"Failed Boosts: {len(failed_boosts)}"
+    )
+    if join_results:
+        join_results_str = "\n".join(
+            [f"• `{await mask_token(token)}`: {'✅' if success else '❌'}" for token, success in
+             join_results.items()] # type: ignore
+        )
+        embed.add_field(
+            name="Join Results Details",
+            value=join_results_str[:1024],  # Discord field size limit
+            inline=False
+        )
+        config = await load_config()
+        boost_key = None
+        if boost_data:
+            boost_key, remaining_boosts = boost_data
+            boosts_needed_to_remove = remaining_boosts - len(successful_boosts)
+            success = await database.remove_boost_from_key(boost_key=boost_key,
+                                                           boosts=boosts_needed_to_remove,
+                                                           database_name=config["boost_keys_database"]["name"],
+                                                           user_id=inter.author.id
+                                                           )  # unused now what
+            if success:
+                embed.add_field(
+                    name="Boosts Removal",
+                    value=f"Successfully removed boosts from Boost Key.",
+                    inline=False
+                )
+            else:
+                embed.add_field(
+                    name="Boost Key Removal",
+                    value=f"Failed to remove boosts from Boost Key.",
+                    inline=False
+                )
 
+        try:
+            # Clean guild invite from either discord.gg, https etc, so get only the code
+            guild_invite = re.search(r"(discord\.gg/|discord\.com/invite/)?([a-zA-Z0-9-]+)$", invite).group(2)
+        except AttributeError:
+            pass
 
+        await FileManager.save_results(guild_invite, amount, join_results, boosts_results,
+                                       boost_key if boost_data else None,
+                                       inter.author.id if boost_data else None)  # Possible error here
+        if config["logging"]["boost_dm_notifications"]:
+            await inter.author.send(embed=embed)
+        if config["logging"]["enabled"]:
+            log_server_id = config["logging"]["server_id"]
+            log_channel_id = config["logging"]["channel_id"]
+            logserver = inter.bot.get_guild(log_server_id)
+            logchannel = logserver.get_channel(log_channel_id)
+            await logchannel.send(embed=embed)
+        await inter.followup.send(embed=embed, ephemeral=True)
+        
+async def process_tokens(inter: ModalInteraction, invite: str, amount: int, tokens: List[str], boost_data = None) -> None:
+    """
+    Process the tokens to join the guild and boost it
 
+    Args:
+        inter: The interaction object
+        invite: The invite code to the guild
+        amount: The amount of boosts to process
+        tokens: The list of tokens to process
+        boost_data: The boost data if available
+    """
+    bot = inter.bot
+    join_results = {}
+    boosts_results = {}
+    tasks = []
+    for token in tokens:
+        discord = Discord(token, bot)
+        tasks.append(discord.process(invite))
+    await asyncio.gather(*tasks)
+    await send_summary_embed(inter, invite, amount, join_results, boosts_results, boost_data)
 
 
 class BoostingModal(ui.Modal):
@@ -606,7 +706,7 @@ class BoostingModal(ui.Modal):
 
             tokens, available_tokens = await FileManager.load_tokens(amount, token_type)
             self.bot.logger.info(f"Boosting {int(amount / 2)} tokens to guild {guild_invite}")
-            # Process the tokens
+            await process_tokens(interaction, guild_invite, amount, tokens, self.boost_data)
 
         except Exception as e:
             self.bot.logger.error(str(e))
