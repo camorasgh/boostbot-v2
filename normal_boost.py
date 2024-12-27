@@ -1,14 +1,13 @@
-import asyncio
 import base64
 import os
 import random
 import re
 import string
-from os import times
 from pathlib import Path
+from zoneinfo import available_timezones
+
 import tls_client
 import sys
-import subprocess
 import aiofiles
 from aiofiles import base as aiofiles_base
 
@@ -19,7 +18,12 @@ from disnake.ext import commands
 from typing import Dict, List, Union, TextIO, BinaryIO, TypeVar, overload, Tuple, Optional
 from typing_extensions import Literal, TypeAlias
 
-from core.misc_boosting import Proxies, get_headers
+from core import database
+from core.misc_boosting import Proxies, get_headers, load_config
+
+# App command types
+BASE_INSTALL_TYPES = ApplicationInstallTypes.all()
+BASE_CONTEXT_TYPES = InteractionContextTypes.all()
 
 # File mode type definitions
 TextMode: TypeAlias = Literal['r', 'w', 'a', 'r+', 'w+', 'a+', 'x', 'x+']
@@ -130,6 +134,45 @@ class FileManager:
             return await aiofiles.open(str(file_path), mode)
         except Exception as e:
             raise FileIOError(f"Error opening file {file_name}: {str(e)}")
+    @staticmethod
+    @is_valid_token_type
+    def get_total_amount_of_tokens(token_type: DURATIONS = '1m') -> int:
+        """
+        Get the total amount of tokens available in a file
+
+        Args:
+            token_type: The type of token to get the amount for
+
+        Returns:
+            The total amount of tokens available
+
+        Raises:
+            FileIOError: If there are issues with the file
+            TokenTypeError: If the token type is invalid
+        """
+        tokens = []
+        try:
+            with FileManager.open(f"input/{token_type}.txt", 'r') as file:
+                content = file.readlines()
+                for token in content:
+                    parts = token.strip().split(':')
+                    if len(parts) == 3:  # mail:pass:token
+                        token = parts[-1]
+                    elif len(parts) == 1:  # token
+                        token = parts[0]
+                    else:
+                        continue
+
+                    if token:
+                        tokens.append(token)
+
+                if not tokens:
+                    raise FileIOError(f"No tokens found in input/{token_type}.txt")
+
+                available_tokens = len(tokens) * 2
+                return available_tokens
+        except Exception as e:
+            raise FileIOError(f"Error getting total amount of tokens: {str(e)}")
 
     @staticmethod
     @is_valid_token_type
@@ -420,7 +463,7 @@ class Discord:
                 data = r.json()
                 if len(data) > 0:
                     boost_ids = [boost['id'] for boost in data]
-                    return boost_ids, self.client
+                    return boost_ids
             elif r.status_code == 401:
                 self.bot.logger.error(f'`ERR_TOKEN_VALIDATION` Invalid Token ({token[:10]}...)')
             elif r.status_code == 403:
@@ -428,7 +471,7 @@ class Discord:
             else:
                 self.bot.logger.error(
                     f'`ERR_UNEXPECTED_STATUS` Unexpected status code {r.status_code} for token {token[:10]}...')
-            return None, None
+            return None
 
         except tls_client.sessions.TLSClientExeption as e:
             self.bot.logger.error(f"`ERR_CLIENT_EXCEPTION` Network error while retrieving boost data: {str(e)}")
@@ -478,4 +521,137 @@ class Discord:
     async def process(self, invite: str) -> None:
         try:
             proxy = await self.proxies.get_random_proxy(self.bot)
-            user_id = str(await self.get_userid(token=token))
+            user_id = str(await self.get_userid(token=self.token))
+            joined, guild_id = await self.join_guild(token=self.token, inv=invite, proxy_=proxy)
+            if joined:
+                boost_data = await self.get_boost_data(token=self.token, selected_proxy=proxy)
+                if boost_data is None:
+                    self.bot.logger.error("Failed to retrieve boost data")
+                    return
+                boosted = await self.boost_server(token=self.token, guild_id=guild_id, boost_ids=boost_data)
+                self.boosts_results[user_id] = False if boosted == False else True
+                pass
+            else:
+                self.boosts_results[user_id] = False
+        except Exception as e:
+            self.bot.logger.error(f"Error processing token {self.token}: {str(e)}")
+
+
+
+
+
+
+
+
+class BoostingModal(ui.Modal):
+    """
+    Handles the modal submission by initiating the boosting process.
+
+    Bot: The bot instance.
+    """
+
+    def __init__(self, bot: commands.InteractionBot, boost_data=None) -> None:
+        self.bot = bot
+        self.boost_data = boost_data
+        available_1m_tokens = FileManager.get_total_amount_of_tokens('1m')
+        available_3m_tokens = FileManager.get_total_amount_of_tokens('3m')
+        components = [
+            ui.TextInput(
+                label="Guild Invite",
+                placeholder="Enter the guild invite",
+                custom_id="boosting.guild_invite",
+                style=TextInputStyle.short,
+                min_length=3,
+                max_length=30,
+            ),
+            ui.TextInput(
+                label="Amount",
+                placeholder=f"The amount of boosts (Available: 1m: {available_1m_tokens}, 3m: {available_3m_tokens}",
+                custom_id="boosting.amount",
+                style=TextInputStyle.short,
+                min_length=1,
+                max_length=2
+            ),
+            ui.TextInput(
+                label="Token Type (1m for 1 Month, 3m for 3 Months)",
+                placeholder="Enter '1m' or '3m'",
+                custom_id="boosting.token_type",
+                style=TextInputStyle.short,
+                min_length=2,
+                max_length=2,
+            ),
+        ]
+        super().__init__(title="Join Booster", components=components)
+
+    async def callback(self, interaction: ModalInteraction) -> None:
+        await interaction.response.defer()
+        try:
+            guild_invite = interaction.text_values['boosting.guild_invite']
+            amount = int(interaction.text_values['boosting.amount'])
+            token_type = interaction.text_values['boosting.token_type']
+
+            if amount % 2 != 0:
+                await interaction.followup.send(content="Amount must be an even number", ephemeral = True)
+                return
+
+            if self.boost_data:
+                boost_key, remaining_boosts = self.boost_data
+                if amount > remaining_boosts:
+                    await interaction.followup.send(
+                        f"`ERR_INSUFFICIENT_BOOSTS` Your boost key `{boost_key:4}` only allows "
+                        f"{remaining_boosts} boosts, but you requested {amount}.",
+                        ephemeral=True,
+                    )
+                    return
+
+            tokens, available_tokens = await FileManager.load_tokens(amount, token_type)
+            self.bot.logger.info(f"Boosting {int(amount / 2)} tokens to guild {guild_invite}")
+            # Process the tokens
+
+        except Exception as e:
+            self.bot.logger.error(str(e))
+            await interaction.followup.send("`ERR_UNKNOWN_EXCEPTION` An error occurred while boosting.", ephemeral=True)
+            return
+
+
+class JoinBoost(commands.Cog):
+    def __init__(self, bot: commands.InteractionBot):
+        self.bot = bot
+
+    @commands.slash_command(
+        name="join",
+        description="Join group handler",
+        contexts=BASE_CONTEXT_TYPES,
+        install_types=BASE_INSTALL_TYPES
+    )
+    async def join_decorator(self, inter: ApplicationCommandInteraction):
+        pass
+
+    @join_decorator.sub_command(name="boost", description="Boost a GUILD using join")
+    async def join_boost_guild(self, inter: ApplicationCommandInteraction):
+        config = await load_config()
+        owner_ids = config["owner_ids"]
+        boost_data = await database.check_user_has_valid_boost_key(user_id=inter.author.id,
+                                                                   database_name=config["boost_keys_database"]["name"]
+                                                                   ) if config["boost_keys_database"][
+            "enabled"] else None
+        if inter.author.id not in owner_ids and boost_data is None:
+            embed = Embed(
+                title="Unauthorized Access",
+                description="You are not authorized to use this command.",
+                color=0xFF0000  # Red
+            )
+            await inter.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        try:
+            modal = BoostingModal(self.bot, boost_data if boost_data else None)
+            await inter.response.send_modal(modal)
+        except Exception as e:
+            self.bot.logger.error(str(e))  # type: ignore
+            await inter.response.send_message(
+                "`ERR_UNKNOWN_EXCEPTION` An error occurred while preparing the boost modal.", ephemeral=True)
+
+
+def setup(bot: commands.InteractionBot):
+    bot.add_cog(JoinBoost(bot))
