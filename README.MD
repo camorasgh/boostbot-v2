@@ -6,6 +6,8 @@ do what you want to with it, since I quit camoras I also reveal all the code for
 
 I may or may not still answer via telegram (@suspectedesp), keep yall safe and have a great 2025 and give borgo/borghettoo some love and donate some money for his work :)
 
+If you still want to support me, feel free to ask me on Telegram, I'll send a ltc addy ;)
+
 ## Description
 ... <!-- add desc here -->
 
