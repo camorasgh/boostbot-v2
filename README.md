@@ -1,8 +1,8 @@
 # Vortex BoostBot
-made by borgo and redacted (borghettoo & suspectedesp)
+made by borgo and redacted (borghettoo & redactedcs)
 
 ## Info
-Due to recent inconveniences I now thought that for this BoostBot for now there will be no sellix integration whatsoever
+do what you want to with it, since I quit camoras I also reveal all the code for the public, I love y'all!
 
 ## Description
 ... <!-- add desc here -->
